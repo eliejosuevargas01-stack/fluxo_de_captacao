@@ -1,0 +1,754 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Meta Ads Library - Funil e Propostas</title>
+    <style>
+      :root {
+        --bg: #07111e;
+        --panel: rgba(15, 23, 42, 0.92);
+        --panel-2: rgba(9, 17, 31, 0.8);
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #f1f5f9;
+        --muted: #98a8c4;
+        --accent: #71d7c7;
+        --accent-2: #ffb84d;
+        --danger: #ff8a7a;
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at 10% 10%, rgba(113, 215, 199, 0.15), transparent 24%),
+          radial-gradient(circle at 90% 0%, rgba(255, 184, 77, 0.14), transparent 20%),
+          linear-gradient(180deg, #05101b 0%, #07111e 100%);
+      }
+
+      .wrap {
+        max-width: 1320px;
+        margin: 0 auto;
+        padding: 24px 16px 48px;
+      }
+
+      .hero {
+        border: 1px solid var(--border);
+        border-radius: 26px;
+        background: linear-gradient(135deg, rgba(15, 23, 42, 0.95), rgba(7, 16, 27, 0.95));
+        padding: 24px;
+        margin-bottom: 18px;
+        box-shadow: 0 24px 60px rgba(0, 0, 0, 0.22);
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 12px;
+        border-radius: 999px;
+        background: rgba(113, 215, 199, 0.12);
+        color: var(--accent);
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        margin-bottom: 12px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(28px, 4vw, 46px);
+        line-height: 1.04;
+        letter-spacing: -0.05em;
+      }
+
+      .hero p {
+        margin: 12px 0 0;
+        max-width: 88ch;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .toolbar {
+        display: grid;
+        grid-template-columns: 1.8fr 1fr 1fr 1fr 1fr;
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .field {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 16px;
+        padding: 12px 14px;
+      }
+
+      .field label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+      }
+
+      .field input,
+      .field select {
+        width: 100%;
+        border: 0;
+        outline: none;
+        background: transparent;
+        color: var(--text);
+        font-size: 15px;
+      }
+
+      .stats {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .stat {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 18px;
+        padding: 16px;
+      }
+
+      .stat .label {
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 11px;
+      }
+
+      .stat .value {
+        margin-top: 8px;
+        font-size: 30px;
+        font-weight: 800;
+      }
+
+      .stat .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-top: 6px;
+      }
+
+      .list {
+        display: grid;
+        gap: 12px;
+      }
+
+      details.card {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        overflow: hidden;
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.15);
+      }
+
+      details.card[open] {
+        background: linear-gradient(180deg, rgba(17, 26, 46, 0.98), rgba(10, 16, 30, 0.98));
+      }
+
+      summary {
+        list-style: none;
+        cursor: pointer;
+        padding: 18px;
+        display: grid;
+        grid-template-columns: 1.5fr 1fr 1.1fr;
+        gap: 14px;
+        align-items: center;
+      }
+
+      summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .title {
+        font-size: 18px;
+        font-weight: 800;
+        margin-bottom: 6px;
+      }
+
+      .meta {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .score {
+        text-align: right;
+      }
+
+      .score .num {
+        font-size: 34px;
+        font-weight: 900;
+        color: var(--accent);
+        line-height: 1;
+      }
+
+      .score .tag {
+        display: inline-flex;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(113, 215, 199, 0.12);
+        color: var(--accent);
+        font-size: 12px;
+      }
+
+      .summary-right {
+        display: grid;
+        justify-items: end;
+        gap: 6px;
+      }
+
+      .summary-pill-row {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border-radius: 999px;
+        padding: 7px 10px;
+        font-size: 12px;
+        background: rgba(113, 215, 199, 0.12);
+        color: var(--accent);
+        border: 1px solid rgba(113, 215, 199, 0.18);
+      }
+
+      .pill.warn {
+        background: rgba(255, 184, 77, 0.12);
+        color: #ffd28a;
+        border-color: rgba(255, 184, 77, 0.2);
+      }
+
+      .pill.no {
+        background: rgba(255, 138, 122, 0.12);
+        color: #ffb0a6;
+        border-color: rgba(255, 138, 122, 0.2);
+      }
+
+      .content {
+        padding: 0 18px 18px;
+        display: grid;
+        gap: 14px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .box {
+        background: rgba(6, 12, 22, 0.42);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 14px;
+      }
+
+      .box h3 {
+        margin: 0 0 10px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        font-size: 12px;
+      }
+
+      .text {
+        color: var(--text);
+        line-height: 1.6;
+        white-space: pre-wrap;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .pill-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .cta-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 12px;
+      }
+
+      .cta-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 42px;
+        padding: 0 14px;
+        border-radius: 12px;
+        border: 1px solid rgba(113, 215, 199, 0.25);
+        background: rgba(113, 215, 199, 0.12);
+        color: var(--text);
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 700;
+        transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .cta-button:hover {
+        transform: translateY(-1px);
+        background: rgba(113, 215, 199, 0.18);
+        border-color: rgba(113, 215, 199, 0.36);
+      }
+
+      .cta-button.secondary {
+        background: rgba(255, 184, 77, 0.12);
+        border-color: rgba(255, 184, 77, 0.24);
+      }
+
+      .cta-button.secondary:hover {
+        background: rgba(255, 184, 77, 0.18);
+        border-color: rgba(255, 184, 77, 0.34);
+      }
+
+      .cta-button.danger {
+        background: rgba(255, 138, 122, 0.12);
+        border-color: rgba(255, 138, 122, 0.24);
+      }
+
+      .cta-button.danger:hover {
+        background: rgba(255, 138, 122, 0.18);
+        border-color: rgba(255, 138, 122, 0.34);
+      }
+
+      .cta-button.disabled {
+        pointer-events: none;
+        opacity: 0.45;
+      }
+
+      .empty {
+        padding: 24px;
+        border-radius: 18px;
+        border: 1px dashed var(--border);
+        color: var(--muted);
+        background: rgba(15, 23, 42, 0.7);
+      }
+
+      .hidden { display: none !important; }
+
+      @media (max-width: 1080px) {
+        .toolbar,
+        .stats {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        summary,
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .score {
+          text-align: left;
+        }
+
+        .summary-right {
+          justify-items: start;
+        }
+
+        .summary-pill-row {
+          justify-content: flex-start;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .toolbar,
+        .stats {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <section class="hero">
+        <div class="eyebrow">Meta Ads Library · Funil</div>
+        <h1>Anúncios ativos com leitura de brecha e proposta pronta</h1>
+        <p>
+          Cada card mostra o anúncio, o destino, sinais do funil e a oferta sugerida.
+          A ideia é achar quem já investe em tráfego, mas ainda deixa conversão na mesa.
+        </p>
+      </section>
+
+      <section class="toolbar">
+        <div class="field">
+          <label for="search">Buscar</label>
+          <input id="search" placeholder="Página, nicho, query, dor, oferta..." />
+        </div>
+        <div class="field">
+          <label for="niche">Nicho</label>
+          <select id="niche"></select>
+        </div>
+        <div class="field">
+          <label for="destination">Destino</label>
+          <select id="destination">
+            <option value="all">Todos</option>
+            <option value="website">Website</option>
+            <option value="instagram_profile">Instagram</option>
+            <option value="facebook_page">Facebook</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="unknown">Desconhecido</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="signal">Sinal</label>
+          <select id="signal">
+            <option value="all">Todos</option>
+            <option value="form">Tem formulario</option>
+            <option value="whatsapp">Tem WhatsApp</option>
+            <option value="booking">Tem agendamento</option>
+            <option value="social">Vai para rede social</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="sortBy">Ordenar por</label>
+          <select id="sortBy">
+            <option value="score">Score</option>
+            <option value="start_date">Data</option>
+            <option value="page_name">Nome</option>
+            <option value="niche">Nicho</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="stats">
+        <div class="stat"><div class="label">Total</div><div class="value" id="totalCount">0</div><div class="sub">Anuncios carregados</div></div>
+        <div class="stat"><div class="label">Top score</div><div class="value" id="topScore">0</div><div class="sub">Melhor oportunidade</div></div>
+        <div class="stat"><div class="label">Websites</div><div class="value" id="websiteCount">0</div><div class="sub">Destino próprio</div></div>
+        <div class="stat"><div class="label">Social</div><div class="value" id="socialCount">0</div><div class="sub">Redireciona para perfil</div></div>
+        <div class="stat"><div class="label">Top 50</div><div class="value" id="top50Count">0</div><div class="sub">Leads prioritários</div></div>
+      </section>
+
+      <main id="list" class="list"></main>
+      <div id="empty" class="empty hidden">Nenhum anúncio encontrado com os filtros atuais.</div>
+    </div>
+
+    <script>
+      const csvPath = "outputs/meta_ads_opportunities.csv";
+      const state = { leads: [], filtered: [] };
+      const $ = (id) => document.getElementById(id);
+
+      function parseCSV(text) {
+        const rows = [];
+        const lines = String(text || "").split(/\r?\n/);
+        if (!lines.length) return rows;
+
+        const splitCSVLine = (line) => {
+          const out = [];
+          let cur = "";
+          let inQuotes = false;
+          for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            const next = line[i + 1];
+            if (ch === '"' && inQuotes && next === '"') {
+              cur += '"';
+              i++;
+            } else if (ch === '"') {
+              inQuotes = !inQuotes;
+            } else if (ch === ',' && !inQuotes) {
+              out.push(cur);
+              cur = "";
+            } else {
+              cur += ch;
+            }
+          }
+          out.push(cur);
+          return out;
+        };
+
+        const header = splitCSVLine(lines.shift());
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          const values = splitCSVLine(line);
+          const row = {};
+          header.forEach((key, idx) => (row[key] = values[idx] ?? ""));
+          rows.push(row);
+        }
+        return rows;
+      }
+
+      const toNumber = (value, fallback = 0) => {
+        const n = Number(String(value ?? "").replace(",", "."));
+        return Number.isFinite(n) ? n : fallback;
+      };
+
+      const clean = (value) => String(value ?? "").trim();
+      const escapeHtml = (value) => String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+      const boolText = (value) => {
+        const s = clean(value).toLowerCase();
+        if (["sim", "yes", "true", "1"].includes(s)) return "Sim";
+        if (["nao", "não", "no", "false", "0"].includes(s)) return "Nao";
+        return s || "Nao";
+      };
+
+      const badgeClass = (value) => (boolText(value) === "Sim" ? "pill" : "pill no");
+
+      function uniqueValues(items, key) {
+        return [...new Set(items.map((item) => clean(item[key])).filter(Boolean))]
+          .sort((a, b) => a.localeCompare(b, "pt-BR"));
+      }
+
+      function populateNiches(items) {
+        const select = $("niche");
+        const niches = uniqueValues(items, "niche");
+        select.innerHTML = ['<option value="all">Todos</option>']
+          .concat(niches.map((item) => `<option value="${escapeHtml(item)}">${escapeHtml(item)}</option>`))
+          .join("");
+      }
+
+      function normalizeUrl(url) {
+        const value = clean(url);
+        if (!value) return "";
+        if (value.startsWith("http://") || value.startsWith("https://")) return value;
+        return `https://${value}`;
+      }
+
+      function openUrl(url) {
+        const finalUrl = normalizeUrl(url);
+        if (!finalUrl) return "";
+        return finalUrl;
+      }
+
+      function buildCopyText(lead) {
+        return clean(lead.proposal || `${lead.page_name || "Lead"} - ${lead.gap || ""} - ${lead.offer || ""}`);
+      }
+
+      async function copyText(text) {
+        try {
+          await navigator.clipboard.writeText(text);
+          return true;
+        } catch {
+          return false;
+        }
+      }
+
+      function matchesFilters(lead) {
+        const q = clean($("search").value).toLowerCase();
+        const niche = $("niche").value;
+        const destination = $("destination").value;
+        const signal = $("signal").value;
+        const hay = [
+          lead.query,
+          lead.page_name,
+          lead.niche,
+          lead.gap,
+          lead.offer,
+          lead.proposal,
+          lead.destination_type,
+          lead.cta_text,
+          lead.ad_text,
+          lead.contact_title,
+        ].join(" ").toLowerCase();
+
+        if (q && !hay.includes(q)) return false;
+        if (niche !== "all" && clean(lead.niche) !== niche) return false;
+        if (destination !== "all" && clean(lead.destination_type) !== destination) return false;
+
+        if (signal === "form" && boolText(lead.contact_has_form) !== "Sim") return false;
+        if (signal === "whatsapp" && boolText(lead.contact_has_whatsapp) !== "Sim") return false;
+        if (signal === "booking" && boolText(lead.contact_has_booking) !== "Sim") return false;
+        if (signal === "social" && !["instagram_profile", "facebook_page"].includes(clean(lead.destination_type))) return false;
+
+        return true;
+      }
+
+      function sortLeads(items) {
+        const key = $("sortBy").value;
+        const copy = [...items];
+        copy.sort((a, b) => {
+          if (key === "page_name" || key === "niche") {
+            return clean(a[key]).localeCompare(clean(b[key]), "pt-BR");
+          }
+          if (key === "start_date") {
+            return clean(b.start_date).localeCompare(clean(a.start_date), "pt-BR");
+          }
+          return toNumber(b.score) - toNumber(a.score);
+        });
+        return copy;
+      }
+
+      function renderStats(items) {
+        $("totalCount").textContent = state.leads.length;
+        $("topScore").textContent = state.leads.length ? Math.max(...state.leads.map((lead) => toNumber(lead.score))) : 0;
+        $("websiteCount").textContent = state.leads.filter((lead) => clean(lead.destination_type) === "website").length;
+        $("socialCount").textContent = state.leads.filter((lead) => ["instagram_profile", "facebook_page"].includes(clean(lead.destination_type))).length;
+        $("top50Count").textContent = items.length;
+      }
+
+      function signalSummary(lead) {
+        const badges = [];
+        if (boolText(lead.contact_has_form) === "Sim") badges.push(["Formulário", "pill"]);
+        if (boolText(lead.contact_has_whatsapp) === "Sim") badges.push(["WhatsApp", "pill"]);
+        if (boolText(lead.contact_has_booking) === "Sim") badges.push(["Agendamento", "pill"]);
+        if (boolText(lead.contact_has_instagram) === "Sim") badges.push(["Instagram", "pill"]);
+        if (["instagram_profile", "facebook_page"].includes(clean(lead.destination_type))) badges.push(["Rede social", "pill warn"]);
+        if (!badges.length) badges.push(["Sem sinal forte", "pill no"]);
+        return badges;
+      }
+
+      function cardHTML(lead, index) {
+        const score = toNumber(lead.score);
+        const pageName = escapeHtml(lead.page_name || "Anúncio sem nome");
+        const query = escapeHtml(lead.query || "");
+        const summaryMeta = [
+          lead.niche || "geral",
+          clean(lead.destination_type) || "desconhecido",
+          lead.start_date || "sem data",
+          lead.ad_status || "unknown",
+        ].join(" · ");
+
+        const signals = signalSummary(lead)
+          .map(([label, klass]) => `<span class="${klass}">${escapeHtml(label)}</span>`)
+          .join("");
+
+        const proposal = buildCopyText(lead);
+        const pageUrl = openUrl(lead.page_url);
+        const destinationUrl = openUrl(lead.destination_clean_url || lead.destination_url || lead.contact_url);
+        const contactUrl = openUrl(lead.contact_url);
+
+        return `
+          <details class="card">
+            <summary>
+              <div>
+                <div class="title">${pageName}</div>
+                <div class="meta">${escapeHtml(summaryMeta)}</div>
+                <div class="meta" style="margin-top:8px;">${query ? `Busca: ${query}` : "Busca: -"} </div>
+              </div>
+              <div class="score">
+                <div class="num">${score}</div>
+                <div class="tag">${escapeHtml(lead.offer_type || "prioridade")}</div>
+              </div>
+              <div class="summary-right">
+                <div class="meta">
+                  <div><strong>Destino:</strong> ${escapeHtml(lead.destination_domain || lead.contact_domain || "n/a")}</div>
+                  <div><strong>CTA:</strong> ${escapeHtml(lead.cta_text || "n/a")}</div>
+                </div>
+                <div class="summary-pill-row">${signals}</div>
+              </div>
+            </summary>
+            <div class="content">
+              <div class="grid">
+                <div class="box">
+                  <h3>Diagnóstico</h3>
+                  <div class="text">${escapeHtml(lead.gap || "Sem diagnóstico.")}</div>
+                </div>
+                <div class="box">
+                  <h3>Oferta sugerida</h3>
+                  <div class="text">${escapeHtml(lead.offer || "Sem oferta sugerida.")}</div>
+                </div>
+              </div>
+
+              <div class="grid">
+                <div class="box">
+                  <h3>Sinais do funil</h3>
+                  <div class="pill-list">
+                    <span class="${badgeClass(lead.contact_has_whatsapp)}">WhatsApp: ${boolText(lead.contact_has_whatsapp)}</span>
+                    <span class="${badgeClass(lead.contact_has_form)}">Formulário: ${boolText(lead.contact_has_form)}</span>
+                    <span class="${badgeClass(lead.contact_has_booking)}">Agendamento: ${boolText(lead.contact_has_booking)}</span>
+                    <span class="${badgeClass(lead.contact_has_instagram)}">Instagram: ${boolText(lead.contact_has_instagram)}</span>
+                    <span class="${badgeClass(lead.contact_has_phone)}">Telefone: ${boolText(lead.contact_has_phone)}</span>
+                    <span class="${badgeClass(lead.contact_has_email)}">Email: ${boolText(lead.contact_has_email)}</span>
+                  </div>
+                </div>
+                <div class="box">
+                  <h3>Mensagem pronta</h3>
+                  <div class="text">${escapeHtml(lead.proposal || "Sem proposta gerada.")}</div>
+                  <div class="cta-row">
+                    <a class="cta-button ${pageUrl ? "" : "disabled"}" href="${pageUrl || "#"}" target="_blank" rel="noopener noreferrer">Abrir anúncio</a>
+                    <a class="cta-button secondary ${destinationUrl ? "" : "disabled"}" href="${destinationUrl || "#"}" target="_blank" rel="noopener noreferrer">Abrir destino</a>
+                    <button class="cta-button danger" type="button" data-copy-field="proposal" data-index="${index}">Copiar proposta</button>
+                    <button class="cta-button secondary" type="button" data-copy-field="gap" data-index="${index}">Copiar diagnóstico</button>
+                    <a class="cta-button ${contactUrl ? "" : "disabled"}" href="${contactUrl || "#"}" target="_blank" rel="noopener noreferrer">Abrir contato</a>
+                  </div>
+                </div>
+              </div>
+
+              <div class="box">
+                <h3>Dados completos</h3>
+                <div class="text muted">${escapeHtml(JSON.stringify(lead, null, 2))}</div>
+              </div>
+            </div>
+          </details>
+        `;
+      }
+
+      function render(items) {
+        renderStats(items);
+        const list = $("list");
+        const empty = $("empty");
+        if (!items.length) {
+          list.innerHTML = "";
+          empty.classList.remove("hidden");
+          return;
+        }
+        empty.classList.add("hidden");
+        list.innerHTML = items.map((lead, index) => cardHTML(lead, index)).join("");
+
+        list.querySelectorAll("[data-copy-field]").forEach((button) => {
+          button.addEventListener("click", async () => {
+            const index = Number(button.getAttribute("data-index"));
+            const field = button.getAttribute("data-copy-field");
+            const lead = state.filtered[index];
+            const success = await copyText(clean(lead?.[field]));
+            const original = field === "proposal" ? "Copiar proposta" : "Copiar diagnóstico";
+            button.textContent = success ? "Copiado" : "Falhou";
+            setTimeout(() => {
+              button.textContent = original;
+            }, 1000);
+          });
+        });
+      }
+
+      function refresh() {
+        const filtered = sortLeads(state.leads.filter(matchesFilters));
+        state.filtered = filtered;
+        render(filtered);
+      }
+
+      async function init() {
+        const response = await fetch(csvPath, { cache: "no-store" });
+        if (!response.ok) throw new Error(`Falha ao carregar ${csvPath}: ${response.status}`);
+        const csv = await response.text();
+        state.leads = parseCSV(csv).map((lead) => ({
+          ...lead,
+          score: toNumber(lead.score),
+        }));
+        populateNiches(state.leads);
+        refresh();
+
+        ["search", "niche", "destination", "signal", "sortBy"].forEach((id) => $(id).addEventListener("input", refresh));
+        ["niche", "destination", "signal", "sortBy"].forEach((id) => $(id).addEventListener("change", refresh));
+      }
+
+      init().catch((err) => {
+        console.error(err);
+        $("list").innerHTML = `<div class="empty">Falha ao carregar ${csvPath}. Rode um servidor local na raiz do projeto.</div>`;
+      });
+    </script>
+  </body>
+</html>

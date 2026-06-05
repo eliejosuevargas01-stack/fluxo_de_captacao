@@ -1,0 +1,16 @@
+barbearia
+barbearia blumenau
+barbearia gaspar
+odontologia
+odontologia blumenau
+odontologia gaspar
+veterinaria
+veterinaria blumenau
+veterinaria gaspar
+imobiliaria
+imobiliaria blumenau
+imobiliaria gaspar
+estetica
+estetica blumenau
+academia
+academia blumenau
