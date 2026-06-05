@@ -45,7 +45,7 @@ def flatten(text: Any) -> str:
 def enrich_card(card: MetaAdCard) -> dict[str, Any]:
     signals = inspect_destination(card.destination_url or card.page_url)
     niche = infer_niche(card.query, card.page_name, card.ad_text, card.destination_url, card.cta_text)
-    gap, offer, offer_type, score = build_offer(niche, signals)
+    gap, offer, offer_type, score = build_offer(niche, signals, card.ad_status)
     proposal = build_proposal(card.page_name or "oi", gap, offer)
     contact_url = signals.clean_url if signals.clean_url else (card.destination_url or card.page_url)
 
