@@ -203,55 +203,39 @@ def infer_niche(*texts: Any) -> str:
     return "geral"
 
 
-def build_offer(niche: str, signals: FunnelSignals) -> tuple[str, str, str, int]:
+def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") -> tuple[str, str, str, int]:
     dest = signals.destination_type
     score = 0
 
-    if dest in {"instagram_profile", "facebook_page"}:
-        score += 40
-        if niche in {"barbearia", "estetica", "academia", "odontologia", "veterinaria", "imobiliaria"}:
-            gap = "o trafego esta indo para um perfil social, sem uma pagina de conversao clara"
-        else:
-            gap = "o trafego esta indo para um perfil social e pode estar perdendo conversao"
-        offer = "landing page simples com WhatsApp e captura de leads"
-        kind = "landing_page"
-    elif dest == "whatsapp":
+    if ad_status == "active":
+        score += 50
+    if dest != "website":
+        score += 50
+    if dest == "whatsapp":
         score += 30
-        gap = "a conversao depende de WhatsApp direto, mas ainda falta estrutura para qualificar o lead"
-        offer = "landing page simples com formulario e automacao de WhatsApp"
-        kind = "automacao"
-    elif dest == "website":
-        weak = not signals.has_form or not signals.has_whatsapp or not signals.has_booking
-        if weak:
-            score += 25
-            missing = []
-            if not signals.has_form:
-                missing.append("formulario")
-            if not signals.has_whatsapp:
-                missing.append("WhatsApp")
-            if not signals.has_booking:
-                missing.append("agendamento")
-            gap = f"o site nao esta capturando bem o lead: falta {', '.join(missing)}"
-            if niche in {"odontologia", "veterinaria", "imobiliaria"}:
-                offer = "landing page de conversao + automacao de atendimento"
-            else:
-                offer = "landing page simples + automacao de captura"
-            kind = "landing_page"
-        else:
-            score += 10
-            gap = "o site existe, mas ainda ha espaco para aumentar a taxa de conversao"
-            offer = "otimizacao da landing page e automacao leve"
-            kind = "otimizacao"
-    else:
-        score += 20
-        gap = "o destino nao ficou claro e o funil parece pouco estruturado"
-        offer = "landing page simples com WhatsApp e formulario"
-        kind = "landing_page"
+    if niche in ["odontologia", "veterinaria"]:
+        score += 30
 
-    if signals.has_phone:
-        score += 5
-    if signals.has_email:
-        score += 2
+    if niche == "imobiliaria":
+        gap = "anuncia imoveis mas sem CRM e sem automacao"
+        offer = "Pipeline de leads"
+        kind = "pipeline"
+    elif dest == "whatsapp":
+        gap = "enviando os leads direto para o WhatsApp sem um fluxo automatico de qualificacao"
+        offer = "Bot WhatsApp"
+        kind = "automacao"
+    elif dest in {"instagram_profile", "facebook_page"}:
+        gap = "nao tem landing page"
+        offer = "Landing Page"
+        kind = "landing_page"
+    elif dest == "website":
+        gap = "formulario horrivel"
+        offer = "Captacao de leads"
+        kind = "captacao"
+    else:
+        gap = "funil desestruturado"
+        offer = "Landing Page e Automacao"
+        kind = "landing_page"
 
     return gap, offer, kind, score
 
