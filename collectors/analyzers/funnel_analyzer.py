@@ -221,7 +221,7 @@ def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") 
         offer = "Pipeline de leads"
         kind = "pipeline"
     elif dest == "whatsapp":
-        gap = "demora responder, nao tem automacao, nao tem pre-atendimento"
+        gap = "enviando os leads direto para o WhatsApp sem um fluxo automatico de qualificacao"
         offer = "Bot WhatsApp"
         kind = "automacao"
     elif dest in {"instagram_profile", "facebook_page"}:
