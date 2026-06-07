@@ -182,17 +182,16 @@ def inspect_destination(url: Any) -> FunnelSignals:
         html = response.text
         clean_url = response.url
         domain = _domain(clean_url)
-        destination_type = _destination_type(clean_url)
-
-        if "wa.me" in clean_url or "api.whatsapp.com" in clean_url:
-            parsed = urlparse(clean_url)
-            params = parse_qs(parsed.query)
-            if "text" in params and params["text"]:
-                prefilled_message = params["text"][0]
-
         status_code = response.status_code
     except Exception as exc:  # pragma: no cover - network dependent
         error = exc.__class__.__name__
+
+    prefilled_message = ""
+    if "wa.me" in clean_url or "api.whatsapp.com" in clean_url:
+        parsed = urlparse(clean_url)
+        params = parse_qs(parsed.query)
+        if "text" in params and params["text"]:
+            prefilled_message = params["text"][0]
 
     signals = _inspect_html(html, clean_url)
     return FunnelSignals(

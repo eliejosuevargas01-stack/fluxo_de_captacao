@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict, Any
+from typing import List, Optional
 from datetime import datetime
 
 class Empresa(BaseModel):
@@ -70,6 +70,9 @@ class WebhookPayload(BaseModel):
     metricas_atendimento_teste: MetricasAtendimentoTeste
     diagnostico_do_pain_detector: DiagnosticoPainDetector
 
+from typing import Dict, Any
+import datetime
+
 def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[Dict[str, Any]] = None) -> dict:
     lead_id = enriched_card.get("ad_library_id") or enriched_card.get("raw_hash", "unknown")
 
@@ -136,7 +139,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     metricas = MetricasAtendimentoTeste(
         teste_executado=teste_executado,
         plataforma_testada=plataforma_testada,
-        horario_envio_teste=datetime.now().isoformat(),
+        horario_envio_teste=datetime.datetime.now().isoformat(),
         tempo_resposta=TempoResposta(
             demorou_responder=demorou,
             tempo_segundos_primeira_resposta=tempo_segundos,
@@ -158,7 +161,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
 
     payload = WebhookPayload(
         lead_id=f"meta_{lead_id}",
-        data_coleta=datetime.now().isoformat(),
+        data_coleta=datetime.datetime.now().isoformat(),
         nicho=enriched_card.get("niche", "geral"),
         empresa=Empresa(
             nome=enriched_card.get("page_name") or "Desconhecido",
