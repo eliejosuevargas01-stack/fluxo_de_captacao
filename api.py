@@ -37,7 +37,11 @@ def process_meta_ads(request: ScrapeRequest):
             test_results = None
 
             # Testa velocidade de resposta apenas se há intenção de mensagem (WhatsApp detectado)
-            if enriched.get("destination_type") == "whatsapp":
+            cta_text = str(enriched.get("cta_text", "")).lower()
+            dest_type = enriched.get("destination_type", "")
+            intent_is_chat = "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]
+
+            if dest_type == "whatsapp" and intent_is_chat:
                 try:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Testando velocidade de resposta para: {enriched.get('contact_domain', 'unknown')}")
                     resp = requests.post(webhook_resposta, json=enriched, timeout=30)
