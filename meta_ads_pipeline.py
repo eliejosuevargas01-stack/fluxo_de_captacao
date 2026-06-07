@@ -76,6 +76,7 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
         "contact_has_email": "sim" if signals.has_email else "nao",
         "contact_error": signals.error,
         "status_code": signals.status_code,
+        "prefilled_message": signals.prefilled_message,
         "niche": niche,
         "gap": flatten(gap),
         "offer": flatten(offer),

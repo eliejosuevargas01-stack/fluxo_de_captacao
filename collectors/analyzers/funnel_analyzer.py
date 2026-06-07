@@ -37,6 +37,7 @@ class FunnelSignals:
     title: str
     error: str = ""
     status_code: int = 0
+    prefilled_message: str = ""
 
 
 def normalize_url(url: Any) -> str:
@@ -135,10 +136,18 @@ def inspect_destination(url: Any) -> FunnelSignals:
             title="",
             error="sem_url",
             status_code=0,
+            prefilled_message="",
         )
 
     domain = _domain(clean_url)
     destination_type = _destination_type(clean_url)
+
+    prefilled_message = ""
+    if "wa.me" in clean_url or "api.whatsapp.com" in clean_url:
+        parsed = urlparse(clean_url)
+        params = parse_qs(parsed.query)
+        if "text" in params and params["text"]:
+            prefilled_message = params["text"][0]
 
     if _is_social_domain(domain):
         return FunnelSignals(
@@ -154,6 +163,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
             title="",
             error="social_only",
             status_code=200,
+            prefilled_message=prefilled_message,
         )
 
     html = ""
@@ -173,6 +183,13 @@ def inspect_destination(url: Any) -> FunnelSignals:
         clean_url = response.url
         domain = _domain(clean_url)
         destination_type = _destination_type(clean_url)
+
+        if "wa.me" in clean_url or "api.whatsapp.com" in clean_url:
+            parsed = urlparse(clean_url)
+            params = parse_qs(parsed.query)
+            if "text" in params and params["text"]:
+                prefilled_message = params["text"][0]
+
         status_code = response.status_code
     except Exception as exc:  # pragma: no cover - network dependent
         error = exc.__class__.__name__
@@ -191,6 +208,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
         title=str(signals["title"]),
         error=error,
         status_code=status_code,
+        prefilled_message=prefilled_message,
     )
 
 
