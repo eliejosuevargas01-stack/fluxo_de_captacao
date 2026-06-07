@@ -113,9 +113,9 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     )
 
     presenca = PresencaDigital(
-        tem_site_proprio=(enriched_card.get("destination_type") == "website"),
+        tem_site_proprio=(enriched_card.get("destination_type") == "website" and enriched_card.get("status_code", 0) == 200),
         url_site=enriched_card.get("destination_clean_url"),
-        status_site=None,
+        status_site=enriched_card.get("status_code"),
         erros_identificados_site=erros
     )
 

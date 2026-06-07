@@ -36,6 +36,7 @@ class FunnelSignals:
     has_email: bool
     title: str
     error: str = ""
+    status_code: int = 0
 
 
 def normalize_url(url: Any) -> str:
@@ -133,6 +134,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
             has_email=False,
             title="",
             error="sem_url",
+            status_code=0,
         )
 
     domain = _domain(clean_url)
@@ -151,10 +153,12 @@ def inspect_destination(url: Any) -> FunnelSignals:
             has_email=False,
             title="",
             error="social_only",
+            status_code=200,
         )
 
     html = ""
     error = ""
+    status_code = 0
     try:
         response = requests.get(
             clean_url,
@@ -168,6 +172,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
         html = response.text
         clean_url = response.url
         domain = _domain(clean_url)
+        status_code = response.status_code
     except Exception as exc:  # pragma: no cover - network dependent
         error = exc.__class__.__name__
 
@@ -184,6 +189,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
         has_email=bool(signals["has_email"]),
         title=str(signals["title"]),
         error=error,
+        status_code=status_code,
     )
 
 
@@ -212,7 +218,7 @@ def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") 
     if dest != "website":
         score += 50
     if dest == "whatsapp":
-        score += 30
+        score += 10
     if niche in ["odontologia", "veterinaria"]:
         score += 30
 

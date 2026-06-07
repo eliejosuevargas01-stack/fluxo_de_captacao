@@ -30,7 +30,7 @@ def process_meta_ads(request: ScrapeRequest):
             test_results = None
 
             dest = enriched.get("destination_type")
-            if dest in ["whatsapp", "instagram_profile", "facebook_page"]:
+            if dest in ["instagram_profile", "facebook_page"]:
                 try:
                     resp = requests.post(webhook_resposta, json=enriched, timeout=30)
                     if resp.status_code == 200:
