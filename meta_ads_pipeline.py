@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import asdict
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -95,6 +96,9 @@ def write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> 
 
 
 def main() -> None:
+    start_time = datetime.now()
+    print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Meta Ads...")
+
     parser = argparse.ArgumentParser(description="Coleta anuncios do Meta Ads Library e aponta falhas de funil.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT, help="Arquivo com queries de busca.")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR, help="Diretorio de saida.")
@@ -102,7 +106,10 @@ def main() -> None:
     args = parser.parse_args()
 
     queries = load_queries(args.input)
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Carregadas {len(queries)} queries")
+
     cards = load_cards(queries, args.max_results)
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Captados {len(cards)} anúncios brutos")
 
     unique: dict[str, MetaAdCard] = {}
     for card in cards:
@@ -148,6 +155,10 @@ def main() -> None:
     raw_rows = [asdict(card) for card in cards]
     write_csv(args.output_dir / "meta_ads_raw.csv", raw_rows, raw_fields or enriched_fields)
     write_csv(args.output_dir / "meta_ads_opportunities.csv", enriched, enriched_fields)
+
+    end_time = datetime.now()
+    duration = (end_time - start_time).total_seconds()
+    print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total: {len(enriched)} leads. Duração: {duration:.1f}s")
 
 
 if __name__ == "__main__":
