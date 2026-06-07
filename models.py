@@ -73,12 +73,39 @@ class WebhookPayload(BaseModel):
 from typing import Dict, Any
 import datetime
 
-def build_webhook_payload(enriched_card: Dict[str, Any]) -> dict:
+def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[Dict[str, Any]] = None) -> dict:
     lead_id = enriched_card.get("ad_library_id") or enriched_card.get("raw_hash", "unknown")
 
     pontos_criticos = []
     if enriched_card.get("gap"):
         pontos_criticos.append(enriched_card["gap"])
+
+    if test_results:
+        demorou = test_results.get("demorou_responder", False)
+        tempo_segundos = test_results.get("tempo_segundos_primeira_resposta")
+        classificacao = test_results.get("classificacao_atendimento", "sem_resposta_24h")
+
+        foi_auto = test_results.get("foi_resposta_automatica", False)
+        conteudo_auto = test_results.get("conteudo_resposta_automatica")
+        teve_triagem = test_results.get("teve_qualificacao_ou_triagem", False)
+        mandou_link = test_results.get("mandou_link_agendamento", False)
+
+        teste_executado = True
+        plataforma_testada = test_results.get("plataforma_testada", enriched_card.get("destination_type"))
+
+        if demorou:
+            pontos_criticos.append(f"Atendimento demorou ({classificacao})")
+
+    else:
+        demorou = False
+        tempo_segundos = None
+        classificacao = "sem_resposta_24h"
+        foi_auto = False
+        conteudo_auto = None
+        teve_triagem = False
+        mandou_link = False
+        teste_executado = False
+        plataforma_testada = None
 
     erros = ErrosIdentificadosSite(
         nao_possui_formulario_captura=not (enriched_card.get("contact_has_form") == "sim"),
@@ -100,15 +127,20 @@ def build_webhook_payload(enriched_card: Dict[str, Any]) -> dict:
     )
 
     metricas = MetricasAtendimentoTeste(
-        teste_executado=False,
-        plataforma_testada=None,
+        teste_executado=teste_executado,
+        plataforma_testada=plataforma_testada,
         horario_envio_teste=datetime.datetime.now().isoformat(),
         tempo_resposta=TempoResposta(
-            demorou_responder=False,
-            tempo_segundos_primeira_resposta=None,
-            classificacao_atendimento="sem_resposta_24h"
+            demorou_responder=demorou,
+            tempo_segundos_primeira_resposta=tempo_segundos,
+            classificacao_atendimento=classificacao
         ),
-        qualidade_atendimento_inicial=QualidadeAtendimentoInicial()
+        qualidade_atendimento_inicial=QualidadeAtendimentoInicial(
+            foi_resposta_automatica=foi_auto,
+            conteudo_resposta_automatica=conteudo_auto,
+            teve_qualificacao_ou_triagem=teve_triagem,
+            mandou_link_agendamento=mandou_link
+        )
     )
 
     diagnostico = DiagnosticoPainDetector(

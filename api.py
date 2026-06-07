@@ -21,17 +21,31 @@ def process_meta_ads(request: ScrapeRequest):
             key = card.ad_library_id or card.raw_hash
             unique_cards[key] = card
 
+        final_report = []
+        webhook_scrapper = "https://myn8n.seommerce.shop/webhook/scrapper"
+        webhook_resposta = "https://myn8n.seommerce.shop/webhook/resposta-lead"
+
         for card in unique_cards.values():
             enriched = enrich_card(card)
-            payload = build_webhook_payload(enriched)
+            test_results = None
 
-            if request.webhook_url:
+            dest = enriched.get("destination_type")
+            if dest in ["whatsapp", "instagram_profile", "facebook_page"]:
                 try:
-                    requests.post(request.webhook_url, json=payload, timeout=10)
+                    resp = requests.post(webhook_resposta, json=enriched, timeout=30)
+                    if resp.status_code == 200:
+                        test_results = resp.json()
                 except Exception as e:
-                    print(f"Error sending to webhook: {e}")
-            else:
-                print(f"Scraped Payload: {payload}")
+                    print(f"Error testing response: {e}")
+
+            payload = build_webhook_payload(enriched, test_results)
+            final_report.append(payload)
+
+        try:
+            requests.post(request.webhook_url or webhook_scrapper, json={"leads": final_report}, timeout=30)
+        except Exception as e:
+            print(f"Error sending to webhook: {e}")
+
     except Exception as e:
         print(f"Error processing meta ads: {e}")
 
