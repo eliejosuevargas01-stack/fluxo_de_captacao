@@ -119,8 +119,18 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         erros_identificados_site=erros
     )
 
+    cta_text = str(enriched_card.get("cta_text", "")).lower()
+    dest_type = enriched_card.get("destination_type", "")
+
+    if "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]:
+        tipo_redirecionamento = "chat_direto"
+    elif dest_type == "website":
+        tipo_redirecionamento = "site_externo"
+    else:
+        tipo_redirecionamento = dest_type
+
     funil = FunilWhatsappDirect(
-        tipo_redirecionamento_anuncio=enriched_card.get("destination_type", "site_externo"),
+        tipo_redirecionamento_anuncio=tipo_redirecionamento,
         tem_link_whatsapp=(enriched_card.get("contact_has_whatsapp") == "sim"),
         numero_whatsapp_detectado=None,
         mensagem_pre_preenchida=None
