@@ -6,6 +6,7 @@ import time
 from datetime import datetime
 
 from meta_ads_pipeline import load_cards, enrich_card
+from collectors.facebook_ads_library import scrape_query
 from models import build_webhook_payload
 
 app = FastAPI(title="Lead Extraction API")
@@ -36,50 +37,73 @@ def process_meta_ads(request: ScrapeRequest):
     start_time = datetime.now()
     print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Meta Ads...")
     try:
-        cards = load_cards(request.queries, request.max_results)
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Captados {len(cards)} anúncios brutos")
-
-        unique_cards = {}
-        for card in cards:
-            key = card.ad_library_id or card.raw_hash
-            unique_cards[key] = card
-
-        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {len(unique_cards)} anúncios únicos após deduplicação")
+        # Define os limites globais
+        max_total = request.max_results if request.max_results else 20
+        min_total = request.min_results if request.min_results else 5
+        target_platform = request.target_platform
+        
+        unique_leads = {}
         final_report = []
+        
         webhook_scrapper = "https://myn8n.seommerce.shop/webhook/scrapper"
         webhook_resposta = "https://myn8n.seommerce.shop/webhook/resposta-lead"
 
-        for card in unique_cards.values():
-            enriched = enrich_card(card)
+        for query in request.queries:
+            # Se já atingiu o limite máximo total, interrompe as buscas
+            if len(final_report) >= max_total:
+                break
             
-            # Filtra por plataforma se solicitado
-            if request.target_platform == "whatsapp":
-                has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
-                if not has_wa:
+            # Limita a busca da query atual para não passar do máximo restante
+            remaining_limit = max_total - len(final_report)
+            actual_query = query.split(":", 1)[1].strip() if query.startswith("page:") else query
+            
+            try:
+                print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Buscando query: '{actual_query}' (restante necessário: {remaining_limit})...")
+                cards = scrape_query(actual_query, country="BR", max_scrolls=8, max_results=remaining_limit)
+            except Exception as e:
+                print(f"Erro ao buscar query '{actual_query}': {e}")
+                continue
+
+            for card in cards:
+                key = card.ad_library_id or card.raw_hash
+                if key in unique_leads:
                     continue
 
-            test_results = None
-
-            # Testa velocidade de resposta apenas se há intenção de mensagem (WhatsApp, Instagram, FB detectado)
-            cta_text = str(enriched.get("cta_text", "")).lower()
-            dest_type = enriched.get("destination_type", "")
-            intent_is_chat = "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]
-
-            if dest_type in ["whatsapp", "instagram_profile", "facebook_page"] and intent_is_chat:
-                try:
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Testando velocidade de resposta para: {enriched.get('contact_domain', 'unknown')}")
-                    resp = requests.post(webhook_resposta, json=enriched, timeout=30)
-                    if resp.status_code == 200:
-                        test_results = resp.json()
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Resposta recebida de: {enriched.get('contact_domain', 'unknown')}")
-                except Exception as e:
-                    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao testar resposta: {e}")
+                enriched = enrich_card(card)
                 
-                # Aguarda 5 segundos entre requisições para evitar sobrecarga (502 Bad Gateway) no Evolution API do VPS
-                time.sleep(5)
+                # Filtra por plataforma se solicitado (ex: whatsapp)
+                if target_platform == "whatsapp":
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
+                    if not has_wa:
+                        continue
 
-            payload = build_webhook_payload(enriched, test_results)
-            final_report.append(payload)
+                unique_leads[key] = card
+                test_results = None
+
+                # Testa velocidade de resposta apenas se há intenção de mensagem
+                cta_text = str(enriched.get("cta_text", "")).lower()
+                dest_type = enriched.get("destination_type", "")
+                intent_is_chat = "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]
+
+                if dest_type in ["whatsapp", "instagram_profile", "facebook_page"] and intent_is_chat:
+                    try:
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Testando velocidade de resposta para: {enriched.get('contact_domain', 'unknown')}")
+                        resp = requests.post(webhook_resposta, json=enriched, timeout=30)
+                        if resp.status_code == 200:
+                            test_results = resp.json()
+                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Resposta recebida de: {enriched.get('contact_domain', 'unknown')}")
+                    except Exception as e:
+                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao testar resposta: {e}")
+                    
+                    # Aguarda 5 segundos entre requisições para evitar sobrecarga (502 Bad Gateway) no Evolution API do VPS
+                    time.sleep(5)
+
+                payload = build_webhook_payload(enriched, test_results)
+                final_report.append(payload)
+                
+                # Se alcançou o máximo, para de processar os cards
+                if len(final_report) >= max_total:
+                    break
 
         try:
             requests.post(request.webhook_url or webhook_scrapper, json={"leads": final_report}, timeout=30)
@@ -88,7 +112,7 @@ def process_meta_ads(request: ScrapeRequest):
         
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
-        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total: {len(final_report)} leads. Duração: {duration:.1f}s")
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total enviado: {len(final_report)} leads. Duração: {duration:.1f}s")
 
     except Exception as e:
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao processar Meta Ads: {e}")
