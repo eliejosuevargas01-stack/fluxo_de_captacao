@@ -1,0 +1,12 @@
+[phases.setup]
+commands = [
+  "python3 -m pip install --no-cache-dir -r requirements.txt"
+]
+
+[phases.build]
+commands = [
+  "python3 -m playwright install --with-deps chromium"
+]
+
+[phases.start]
+command = "uvicorn api:app --host 0.0.0.0 --port ${PORT:-8000}"

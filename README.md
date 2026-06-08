@@ -33,14 +33,14 @@ O comando acima gera `outputs/leads_raw.csv` e normaliza para `outputs/leads.csv
 
 ## Deploy no Coolify
 
-Este projeto já possui `Dockerfile` para deploy em Coolify e um `Procfile` para uso com Nixpacks/Heroku-style deployments.
+Este projeto já possui `Dockerfile` para deploy em Coolify e um `Procfile` + `nixpacks.toml` para uso Nixpacks/Heroku-style deployments.
 
 - Crie um novo serviço no Coolify
 - Aponte para este repositório
-- Configure a porta `8000`
-- Use a imagem Docker padrão com o `Dockerfile` do projeto
+- Configure a porta `8000` ou deixe o Coolify fornecer `PORT`
+- Use a imagem Docker padrão com o `Dockerfile` do projeto ou selecione Nixpacks
 
-O container inicia a API em `http://0.0.0.0:8000`.
+O container inicia a API em `http://0.0.0.0:8000` por padrão, mas respeita a variável `PORT` do ambiente.
 
 ### Healthcheck
 
