@@ -5,6 +5,7 @@ from datetime import datetime
 class Empresa(BaseModel):
     nome: str
     telefone_contato: Optional[str] = None
+    email_contato: Optional[str] = None
     instagram_url: Optional[str] = None
     facebook_page_url: Optional[str] = None
     localizacao: str = ""
@@ -165,6 +166,8 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         nicho=enriched_card.get("niche", "geral"),
         empresa=Empresa(
             nome=enriched_card.get("page_name") or "Desconhecido",
+            telefone_contato=enriched_card.get("extracted_phone") or None,
+            email_contato=enriched_card.get("extracted_email") or None,
             facebook_page_url=enriched_card.get("page_url"),
         ),
         analise_anuncio=AnaliseAnuncio(

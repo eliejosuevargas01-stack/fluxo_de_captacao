@@ -77,6 +77,8 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
         "contact_error": signals.error,
         "status_code": signals.status_code,
         "prefilled_message": signals.prefilled_message,
+        "extracted_email": signals.extracted_email,
+        "extracted_phone": signals.extracted_phone,
         "niche": niche,
         "gap": flatten(gap),
         "offer": flatten(offer),

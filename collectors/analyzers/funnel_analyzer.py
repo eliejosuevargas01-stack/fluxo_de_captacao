@@ -38,6 +38,8 @@ class FunnelSignals:
     error: str = ""
     status_code: int = 0
     prefilled_message: str = ""
+    extracted_email: str = ""
+    extracted_phone: str = ""
 
 
 def normalize_url(url: Any) -> str:
@@ -93,9 +95,14 @@ def _inspect_html(html: str, url: str = "") -> dict[str, bool | str]:
     has_form = any(token in blob for token in ("<form", "contact-form", "formulario", "formulário", "lead-form", "fale conosco"))
     has_booking = any(token in blob for token in ("calendly", "agendamento", "agendar", "agenda online", "booking", "book now", "schedule"))
     has_instagram = "instagram.com" in blob
-    has_email = "mailto:" in blob or "@" in blob
+    email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", html)
+    extracted_email = email_match.group(0) if email_match else ""
+    has_email = bool(extracted_email) or ("mailto:" in blob)
+
     phone_match = re.search(r"(?:\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}", html)
-    has_phone = bool(phone_match)
+    extracted_phone = phone_match.group(0).strip() if phone_match else ""
+    has_phone = bool(extracted_phone)
+
     title_match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
     title = unescape(title_match.group(1)).strip() if title_match else ""
     return {
@@ -106,6 +113,8 @@ def _inspect_html(html: str, url: str = "") -> dict[str, bool | str]:
         "has_phone": has_phone,
         "has_email": has_email,
         "title": title,
+        "extracted_email": extracted_email,
+        "extracted_phone": extracted_phone,
     }
 
 
@@ -137,6 +146,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
             error="sem_url",
             status_code=0,
             prefilled_message="",
+            extracted_email="",
+            extracted_phone="",
         )
 
     domain = _domain(clean_url)
@@ -164,6 +175,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
             error="social_only",
             status_code=200,
             prefilled_message=prefilled_message,
+            extracted_email="",
+            extracted_phone="",
         )
 
     html = ""
@@ -209,6 +222,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
         error=error,
         status_code=status_code,
         prefilled_message=prefilled_message,
+        extracted_email=str(signals["extracted_email"]),
+        extracted_phone=str(signals["extracted_phone"]),
     )
 
 
