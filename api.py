@@ -9,6 +9,21 @@ from models import build_webhook_payload
 
 app = FastAPI(title="Lead Extraction API")
 
+@app.get("/")
+async def root() -> dict[str, str]:
+    return {
+        "status": "ok",
+        "service": "Lead Extraction API",
+        "message": "API is running",
+    }
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
 class ScrapeRequest(BaseModel):
     queries: List[str]
     max_results: int = 10
