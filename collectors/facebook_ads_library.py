@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 from urllib.parse import parse_qs, quote_plus, unquote, urlparse
 
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
@@ -247,8 +247,10 @@ def parse_ad_card(card, query: str, search_url: str) -> MetaAdCard:
 def scrape_query(
     query: str,
     country: str = "BR",
-    max_scrolls: int = 8,
+    max_scrolls: int = 20,
     max_results: int = 200,
+    min_results: int = 1,
+    target_platform: Optional[str] = None,
 ) -> list[MetaAdCard]:
     search_url = build_search_url(query, country=country)
     collected: list[MetaAdCard] = []
@@ -279,6 +281,22 @@ def scrape_query(
                         continue
                     seen_ids.add(key)
                     seen_hashes.add(ad.raw_hash)
+
+                    if target_platform:
+                        target = target_platform.lower()
+                        domain = (ad.destination_domain or "").lower()
+                        page_domain = _domain(ad.page_url or "")
+                        is_wa = "wa.me" in domain or "whatsapp" in domain or "whatsapp" in page_domain
+                        is_ig = "instagram.com" in domain or "instagram.com" in page_domain
+                        is_fb = "facebook.com" in domain or "facebook.com" in page_domain
+
+                        if target == "whatsapp" and not is_wa:
+                            continue
+                        elif target == "instagram" and not is_ig:
+                            continue
+                        elif target == "facebook" and not is_fb:
+                            continue
+
                     collected.append(ad)
                     if len(collected) >= max_results:
                         browser.close()
@@ -290,7 +308,9 @@ def scrape_query(
                     stale_rounds = 0
                 previous_total = len(collected)
 
-                if stale_rounds >= 2:
+                if stale_rounds >= 2 and len(collected) >= min_results:
+                    break
+                elif stale_rounds >= 8:
                     break
 
                 page.mouse.wheel(0, 2800)

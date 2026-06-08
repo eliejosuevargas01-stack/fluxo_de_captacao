@@ -9,31 +9,18 @@ from models import build_webhook_payload
 
 app = FastAPI(title="Lead Extraction API")
 
-@app.get("/")
-async def root() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": "Lead Extraction API",
-        "message": "API is running",
-    }
-
-@app.get("/health")
-async def health() -> dict[str, str]:
-    return {
-        "status": "healthy",
-        "timestamp": datetime.utcnow().isoformat() + "Z",
-    }
-
 class ScrapeRequest(BaseModel):
     queries: List[str]
     max_results: int = 10
+    min_results: int = 1
+    target_platform: Optional[str] = None
     webhook_url: Optional[str] = None
 
 def process_meta_ads(request: ScrapeRequest):
     start_time = datetime.now()
     print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Meta Ads...")
     try:
-        cards = load_cards(request.queries, request.max_results)
+        cards = load_cards(request.queries, request.max_results, request.min_results, request.target_platform)
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Captados {len(cards)} anúncios brutos")
 
         unique_cards = {}

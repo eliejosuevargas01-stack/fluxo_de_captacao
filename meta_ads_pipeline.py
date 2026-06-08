@@ -5,7 +5,7 @@ import csv
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from collectors.analyzers.funnel_analyzer import (
     build_offer,
@@ -31,11 +31,11 @@ def load_queries(path: Path) -> list[str]:
     return queries
 
 
-def load_cards(queries: list[str], max_results: int) -> list[MetaAdCard]:
+def load_cards(queries: list[str], max_results: int, min_results: int = 1, target_platform: Optional[str] = None) -> list[MetaAdCard]:
     cards: list[MetaAdCard] = []
     for query in queries:
         actual_query = query.split(":", 1)[1].strip() if query.startswith("page:") else query
-        cards.extend(scrape_query(actual_query, country="BR", max_scrolls=8, max_results=max_results))
+        cards.extend(scrape_query(actual_query, country="BR", max_scrolls=20, max_results=max_results, min_results=min_results, target_platform=target_platform))
     return cards
 
 

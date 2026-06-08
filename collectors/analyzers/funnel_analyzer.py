@@ -182,6 +182,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
         html = response.text
         clean_url = response.url
         domain = _domain(clean_url)
+        destination_type = _destination_type(clean_url)
         status_code = response.status_code
     except Exception as exc:  # pragma: no cover - network dependent
         error = exc.__class__.__name__
