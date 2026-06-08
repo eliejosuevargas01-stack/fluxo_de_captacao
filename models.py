@@ -5,6 +5,7 @@ from datetime import datetime
 class Empresa(BaseModel):
     nome: str
     telefone_contato: Optional[str] = None
+    email_contato: Optional[str] = None
     instagram_url: Optional[str] = None
     facebook_page_url: Optional[str] = None
     localizacao: str = ""
@@ -132,7 +133,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     funil = FunilWhatsappDirect(
         tipo_redirecionamento_anuncio=tipo_redirecionamento,
         tem_link_whatsapp=(enriched_card.get("contact_has_whatsapp") == "sim"),
-        numero_whatsapp_detectado=None,
+        numero_whatsapp_detectado=enriched_card.get("contact_phone"),
         mensagem_pre_preenchida=enriched_card.get("prefilled_message")
     )
 
@@ -165,6 +166,8 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         nicho=enriched_card.get("niche", "geral"),
         empresa=Empresa(
             nome=enriched_card.get("page_name") or "Desconhecido",
+            telefone_contato=enriched_card.get("contact_phone"),
+            email_contato=enriched_card.get("contact_email"),
             facebook_page_url=enriched_card.get("page_url"),
         ),
         analise_anuncio=AnaliseAnuncio(

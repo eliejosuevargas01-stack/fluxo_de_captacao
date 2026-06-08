@@ -38,6 +38,8 @@ class FunnelSignals:
     error: str = ""
     status_code: int = 0
     prefilled_message: str = ""
+    email: str | None = None
+    phone: str | None = None
 
 
 def normalize_url(url: Any) -> str:
@@ -87,15 +89,36 @@ def _extract_phone_digits(text: str) -> str:
     return ""
 
 
-def _inspect_html(html: str, url: str = "") -> dict[str, bool | str]:
+def _extract_phone_from_whatsapp_url(url: str) -> str | None:
+    parsed = urlparse(url)
+    if "wa.me" in parsed.netloc:
+        digits = re.sub(r"\D+", "", parsed.path)
+        if digits:
+            return digits
+    elif "whatsapp.com" in parsed.netloc:
+        params = parse_qs(parsed.query)
+        if "phone" in params and params["phone"]:
+            return re.sub(r"\D+", "", params["phone"][0])
+    return None
+
+
+def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
     blob = f"{url}\n{html}".lower()
     has_whatsapp = any(token in blob for token in ("wa.me", "api.whatsapp.com", "whatsapp://", "whatsapp"))
     has_form = any(token in blob for token in ("<form", "contact-form", "formulario", "formulário", "lead-form", "fale conosco"))
     has_booking = any(token in blob for token in ("calendly", "agendamento", "agendar", "agenda online", "booking", "book now", "schedule"))
     has_instagram = "instagram.com" in blob
-    has_email = "mailto:" in blob or "@" in blob
+    
+    # Extrai o email real usando regex
+    email_match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", html)
+    email = email_match.group(0) if email_match else None
+    has_email = bool(email)
+    
+    # Extrai o telefone real usando regex
     phone_match = re.search(r"(?:\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}", html)
-    has_phone = bool(phone_match)
+    phone = _extract_phone_digits(phone_match.group(0)) if phone_match else None
+    has_phone = bool(phone)
+    
     title_match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
     title = unescape(title_match.group(1)).strip() if title_match else ""
     return {
@@ -105,17 +128,16 @@ def _inspect_html(html: str, url: str = "") -> dict[str, bool | str]:
         "has_instagram": has_instagram,
         "has_phone": has_phone,
         "has_email": has_email,
+        "email": email,
+        "phone": phone,
         "title": title,
     }
 
 
-def _pick_contact_url(clean_url: str, signals: dict[str, bool | str], html: str) -> str:
+def _pick_contact_url(clean_url: str, signals: dict[str, Any], html: str) -> str:
     if _destination_type(clean_url) == "website":
-        phone_match = re.search(r"(?:\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}", html)
-        if phone_match:
-            digits = _extract_phone_digits(phone_match.group(0))
-            if digits:
-                return f"https://wa.me/{digits}"
+        if signals.get("phone"):
+            return f"https://wa.me/{signals['phone']}"
     return clean_url
 
 
@@ -137,6 +159,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
             error="sem_url",
             status_code=0,
             prefilled_message="",
+            email=None,
+            phone=None,
         )
 
     domain = _domain(clean_url)
@@ -150,6 +174,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
             prefilled_message = params["text"][0]
 
     if _is_social_domain(domain):
+        phone = _extract_phone_from_whatsapp_url(clean_url) if destination_type == "whatsapp" else None
         return FunnelSignals(
             destination_type=destination_type,
             clean_url=clean_url,
@@ -158,12 +183,14 @@ def inspect_destination(url: Any) -> FunnelSignals:
             has_form=False,
             has_booking=False,
             has_instagram="instagram.com" in domain,
-            has_phone=False,
+            has_phone=bool(phone),
             has_email=False,
             title="",
             error="social_only",
             status_code=200,
             prefilled_message=prefilled_message,
+            email=None,
+            phone=phone,
         )
 
     html = ""
@@ -194,6 +221,16 @@ def inspect_destination(url: Any) -> FunnelSignals:
             prefilled_message = params["text"][0]
 
     signals = _inspect_html(html, clean_url)
+    
+    # Se for link de whatsapp de redirecionamento, tenta ler o número
+    phone = signals.get("phone")
+    if not phone and destination_type == "whatsapp":
+        phone = _extract_phone_from_whatsapp_url(clean_url)
+    elif not phone and signals.get("has_whatsapp"):
+        wa_match = re.search(r"(?:wa\.me|api\.whatsapp\.com/send\?phone=)(\d+)", html)
+        if wa_match:
+            phone = wa_match.group(1)
+
     return FunnelSignals(
         destination_type=destination_type,
         clean_url=_pick_contact_url(clean_url, signals, html) if destination_type == "website" else clean_url,
@@ -202,12 +239,14 @@ def inspect_destination(url: Any) -> FunnelSignals:
         has_form=bool(signals["has_form"]),
         has_booking=bool(signals["has_booking"]),
         has_instagram=bool(signals["has_instagram"]),
-        has_phone=bool(signals["has_phone"]),
+        has_phone=bool(signals["has_phone"]) or bool(phone),
         has_email=bool(signals["has_email"]),
         title=str(signals["title"]),
         error=error,
         status_code=status_code,
         prefilled_message=prefilled_message,
+        email=signals.get("email"),
+        phone=phone,
     )
 
 

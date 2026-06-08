@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks
 from pydantic import BaseModel
 from typing import List, Optional
 import requests
+import time
 from datetime import datetime
 
 from meta_ads_pipeline import load_cards, enrich_card
@@ -28,6 +29,8 @@ class ScrapeRequest(BaseModel):
     queries: List[str]
     max_results: int = 10
     webhook_url: Optional[str] = None
+    target_platform: Optional[str] = None
+    min_results: Optional[int] = None
 
 def process_meta_ads(request: ScrapeRequest):
     start_time = datetime.now()
@@ -48,6 +51,13 @@ def process_meta_ads(request: ScrapeRequest):
 
         for card in unique_cards.values():
             enriched = enrich_card(card)
+            
+            # Filtra por plataforma se solicitado
+            if request.target_platform == "whatsapp":
+                has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
+                if not has_wa:
+                    continue
+
             test_results = None
 
             # Testa velocidade de resposta apenas se há intenção de mensagem (WhatsApp, Instagram, FB detectado)
@@ -64,6 +74,9 @@ def process_meta_ads(request: ScrapeRequest):
                         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Resposta recebida de: {enriched.get('contact_domain', 'unknown')}")
                 except Exception as e:
                     print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao testar resposta: {e}")
+                
+                # Aguarda 5 segundos entre requisições para evitar sobrecarga (502 Bad Gateway) no Evolution API do VPS
+                time.sleep(5)
 
             payload = build_webhook_payload(enriched, test_results)
             final_report.append(payload)
@@ -73,10 +86,6 @@ def process_meta_ads(request: ScrapeRequest):
         except Exception as e:
             print(f"Error sending to webhook: {e}")
         
-        end_time = datetime.now()
-        duration = (end_time - start_time).total_seconds()
-        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total: {len(final_report)} leads. Duração: {duration:.1f}s")
-
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
         print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total: {len(final_report)} leads. Duração: {duration:.1f}s")
