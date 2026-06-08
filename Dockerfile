@@ -24,6 +24,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN python3 -m playwright install --with-deps chromium
+RUN ls -la /root/.cache/ms-playwright/ || echo "Playwright cache not found"
+RUN python3 -c "from playwright.sync_api import sync_playwright; print('Playwright import OK')"
 
 COPY . .
 
