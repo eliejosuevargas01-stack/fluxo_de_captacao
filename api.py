@@ -42,7 +42,6 @@ def process_meta_ads(request: ScrapeRequest):
             unique_cards[key] = card
 
         print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {len(unique_cards)} anúncios únicos após deduplicação")
-
         final_report = []
         webhook_scrapper = "https://myn8n.seommerce.shop/webhook/scrapper"
         webhook_resposta = "https://myn8n.seommerce.shop/webhook/resposta-lead"
@@ -73,6 +72,10 @@ def process_meta_ads(request: ScrapeRequest):
             requests.post(request.webhook_url or webhook_scrapper, json={"leads": final_report}, timeout=30)
         except Exception as e:
             print(f"Error sending to webhook: {e}")
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Meta Ads finalizado! Total: {len(final_report)} leads. Duração: {duration:.1f}s")
 
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()
