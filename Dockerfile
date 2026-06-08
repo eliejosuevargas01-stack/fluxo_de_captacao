@@ -3,22 +3,14 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libglib2.0-0 \
     libx11-6 \
     libxext6 \
     libxrender1 \
-    libnss3 \
-    libgconf-2-4 \
-    libappindicator1 \
-    libindicator7 \
-    libgstreamer1.0-0 \
-    libopenjp2-7 \
-    libwebp6 \
-    libxss1 \
-    libxtst6 \
     libxkbcommon0 \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
+    libnss3 \
+    libxss1 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
