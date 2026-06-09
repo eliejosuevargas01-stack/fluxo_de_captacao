@@ -102,6 +102,43 @@ def _extract_phone_from_whatsapp_url(url: str) -> str | None:
     return None
 
 
+def extract_emails_from_text(text: str) -> list[str]:
+    if not text:
+        return []
+    emails = re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", text)
+    return list(dict.fromkeys(emails))
+
+
+def extract_phones_from_text(text: str) -> list[str]:
+    if not text:
+        return []
+    found_phones = []
+    
+    # 1. WhatsApp link pattern
+    wa_pattern = r"(?:wa\.me/|api\.whatsapp\.com/send\?(?:[^&]*&)*phone=|whatsapp\.com/send\?(?:[^&]*&)*phone=|whatsapp://send\?(?:[^&]*&)*phone=)(\+?\d+)"
+    for match in re.finditer(wa_pattern, text, re.IGNORECASE):
+        digits = _extract_phone_digits(match.group(1))
+        if digits and digits not in found_phones:
+            found_phones.append(digits)
+            
+    # 2. Plain phone pattern (Brazilian format)
+    # Check mobile numbers first (starts with 9)
+    mobile_pattern = r"(?:\+?55)?\s*\(?([1-9][1-9])\)?\s*(9\s?\d{4}[-\s]?\d{4})"
+    for match in re.finditer(mobile_pattern, text):
+        digits = _extract_phone_digits(match.group(0))
+        if digits and digits not in found_phones:
+            found_phones.append(digits)
+            
+    # Check landline/general numbers as fallback
+    landline_pattern = r"(?:\+?55)?\s*\(?([1-9][1-9])\)?\s*([2-5]\d{3}[-\s]?\d{4})"
+    for match in re.finditer(landline_pattern, text):
+        digits = _extract_phone_digits(match.group(0))
+        if digits and digits not in found_phones:
+            found_phones.append(digits)
+            
+    return found_phones
+
+
 def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
     blob = f"{url}\n{html}".lower()
     has_whatsapp = any(token in blob for token in ("wa.me", "api.whatsapp.com", "whatsapp://", "whatsapp"))
@@ -109,14 +146,14 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
     has_booking = any(token in blob for token in ("calendly", "agendamento", "agendar", "agenda online", "booking", "book now", "schedule"))
     has_instagram = "instagram.com" in blob
     
-    # Extrai o email real usando regex
-    email_match = re.search(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", html)
-    email = email_match.group(0) if email_match else None
+    # Extrai o email real usando a nova função
+    emails = extract_emails_from_text(html)
+    email = emails[0] if emails else None
     has_email = bool(email)
     
-    # Extrai o telefone real usando regex
-    phone_match = re.search(r"(?:\+?55)?\s*\(?\d{2}\)?\s*\d{4,5}[-\s]?\d{4}", html)
-    phone = _extract_phone_digits(phone_match.group(0)) if phone_match else None
+    # Extrai o telefone real usando a nova função
+    phones = extract_phones_from_text(blob)
+    phone = phones[0] if phones else None
     has_phone = bool(phone)
     
     title_match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
@@ -179,7 +216,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
             destination_type=destination_type,
             clean_url=clean_url,
             domain=domain,
-            has_whatsapp="whatsapp" in clean_url,
+            has_whatsapp=("whatsapp" in clean_url or "wa.me" in clean_url or destination_type == "whatsapp"),
             has_form=False,
             has_booking=False,
             has_instagram="instagram.com" in domain,
@@ -224,12 +261,13 @@ def inspect_destination(url: Any) -> FunnelSignals:
     
     # Se for link de whatsapp de redirecionamento, tenta ler o número
     phone = signals.get("phone")
-    if not phone and destination_type == "whatsapp":
-        phone = _extract_phone_from_whatsapp_url(clean_url)
-    elif not phone and signals.get("has_whatsapp"):
-        wa_match = re.search(r"(?:wa\.me|api\.whatsapp\.com/send\?phone=)(\d+)", html)
-        if wa_match:
-            phone = wa_match.group(1)
+    if not phone:
+        if destination_type == "whatsapp":
+            phone = _extract_phone_from_whatsapp_url(clean_url)
+        if not phone:
+            extra_phones = extract_phones_from_text(html)
+            if extra_phones:
+                phone = extra_phones[0]
 
     return FunnelSignals(
         destination_type=destination_type,

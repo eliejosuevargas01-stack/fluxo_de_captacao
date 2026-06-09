@@ -12,6 +12,9 @@ from collectors.analyzers.funnel_analyzer import (
     build_proposal,
     infer_niche,
     inspect_destination,
+    _extract_phone_from_whatsapp_url,
+    extract_emails_from_text,
+    extract_phones_from_text,
 )
 from collectors.facebook_ads_library import MetaAdCard, scrape_query
 
@@ -45,10 +48,34 @@ def flatten(text: Any) -> str:
 
 def enrich_card(card: MetaAdCard) -> dict[str, Any]:
     signals = inspect_destination(card.destination_url or card.page_url)
+    
+    # Fallback phone extraction
+    phone = signals.phone
+    if not phone and card.destination_url:
+        phone = _extract_phone_from_whatsapp_url(card.destination_url)
+    if not phone:
+        text_phones = extract_phones_from_text(card.ad_text) + extract_phones_from_text(card.raw_text)
+        if text_phones:
+            phone = text_phones[0]
+            
+    # Fallback email extraction
+    email = signals.email
+    if not email:
+        text_emails = extract_emails_from_text(card.ad_text) + extract_emails_from_text(card.raw_text)
+        if text_emails:
+            email = text_emails[0]
+            
+    has_phone = bool(phone) or signals.has_phone
+    has_email = bool(email) or signals.has_email
+    has_whatsapp = signals.has_whatsapp or bool(phone)
+
     niche = infer_niche(card.query, card.page_name, card.ad_text, card.destination_url, card.cta_text)
     gap, offer, offer_type, score = build_offer(niche, signals, card.ad_status)
     proposal = build_proposal(card.page_name or "oi", gap, offer)
+    
     contact_url = signals.clean_url if signals.clean_url else (card.destination_url or card.page_url)
+    if phone and not ("wa.me" in contact_url or "whatsapp" in contact_url):
+        contact_url = f"https://wa.me/{phone}"
 
     return {
         "query": card.query,
@@ -68,14 +95,14 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
         "contact_url": contact_url,
         "contact_domain": signals.domain,
         "contact_title": signals.title,
-        "contact_has_whatsapp": "sim" if signals.has_whatsapp else "nao",
+        "contact_has_whatsapp": "sim" if has_whatsapp else "nao",
         "contact_has_form": "sim" if signals.has_form else "nao",
         "contact_has_booking": "sim" if signals.has_booking else "nao",
         "contact_has_instagram": "sim" if signals.has_instagram else "nao",
-        "contact_has_phone": "sim" if signals.has_phone else "nao",
-        "contact_has_email": "sim" if signals.has_email else "nao",
-        "contact_phone": signals.phone,
-        "contact_email": signals.email,
+        "contact_has_phone": "sim" if has_phone else "nao",
+        "contact_has_email": "sim" if has_email else "nao",
+        "contact_phone": phone,
+        "contact_email": email,
         "contact_error": signals.error,
         "status_code": signals.status_code,
         "prefilled_message": signals.prefilled_message,

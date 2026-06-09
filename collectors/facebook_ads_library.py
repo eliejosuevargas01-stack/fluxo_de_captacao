@@ -75,8 +75,9 @@ def _extract_hash(text: str) -> str:
     return hashlib.sha1(text.encode("utf-8", errors="ignore")).hexdigest()
 
 
-def _find_first_external_href(card) -> tuple[str, str]:
+def _find_best_external_href(card) -> tuple[str, str]:
     anchors = card.locator("a")
+    candidates = []
     for idx in range(anchors.count()):
         a = anchors.nth(idx)
         href = _normalize_href(a.get_attribute("href") or "")
@@ -86,8 +87,29 @@ def _find_first_external_href(card) -> tuple[str, str]:
         if "facebook.com" in domain and "l.facebook.com" not in href:
             continue
         if domain:
+            candidates.append((href, domain))
+            
+    if not candidates:
+        return "", ""
+        
+    # Priority 1: WhatsApp domains
+    for href, domain in candidates:
+        if "wa.me" in domain or "whatsapp.com" in domain:
             return href, domain
-    return "", ""
+            
+    # Priority 2: General websites (non-social, non-facebook, non-instagram)
+    social_keywords = ["instagram.com", "facebook.com", "youtube.com", "twitter.com", "linkedin.com", "tiktok.com", "pinterest.com"]
+    for href, domain in candidates:
+        if not any(kw in domain for kw in social_keywords):
+            return href, domain
+            
+    # Priority 3: Instagram/social profiles
+    for href, domain in candidates:
+        if "instagram.com" in domain:
+            return href, domain
+            
+    # Fallback to the first available candidate
+    return candidates[0]
 
 
 def _find_page_href(card) -> str:
@@ -225,7 +247,7 @@ def parse_ad_card(card, query: str, search_url: str) -> MetaAdCard:
     ad_text = _extract_ad_text(lines)
     cta_text = _best_cta_text(card)
     page_url = _find_page_href(card)
-    destination_url, destination_domain = _find_first_external_href(card)
+    destination_url, destination_domain = _find_best_external_href(card)
     return MetaAdCard(
         query=query,
         search_url=search_url,
