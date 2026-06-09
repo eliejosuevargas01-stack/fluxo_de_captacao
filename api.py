@@ -71,6 +71,12 @@ def process_meta_ads(request: ScrapeRequest):
 
                 enriched = enrich_card(card)
                 
+                # Filtra apenas leads que tenham telefone ou email
+                has_phone = bool(enriched.get("contact_phone"))
+                has_email = bool(enriched.get("contact_email"))
+                if not (has_phone or has_email):
+                    continue
+
                 # Filtra por plataforma se solicitado (ex: whatsapp)
                 if target_platform == "whatsapp":
                     has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
@@ -79,24 +85,6 @@ def process_meta_ads(request: ScrapeRequest):
 
                 unique_leads[key] = card
                 test_results = None
-
-                # Testa velocidade de resposta apenas se há intenção de mensagem
-                cta_text = str(enriched.get("cta_text", "")).lower()
-                dest_type = enriched.get("destination_type", "")
-                intent_is_chat = "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]
-
-                if dest_type in ["whatsapp", "instagram_profile", "facebook_page"] and intent_is_chat:
-                    try:
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Testando velocidade de resposta para: {enriched.get('contact_domain', 'unknown')}")
-                        resp = requests.post(webhook_resposta, json=enriched, timeout=30)
-                        if resp.status_code == 200:
-                            test_results = resp.json()
-                            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Resposta recebida de: {enriched.get('contact_domain', 'unknown')}")
-                    except Exception as e:
-                        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao testar resposta: {e}")
-                    
-                    # Aguarda 5 segundos entre requisições para evitar sobrecarga (502 Bad Gateway) no Evolution API do VPS
-                    time.sleep(5)
 
                 payload = build_webhook_payload(enriched, test_results)
                 final_report.append(payload)
