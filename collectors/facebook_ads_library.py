@@ -278,8 +278,9 @@ def scrape_query(
     seen_hashes: set[str] = set()
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
-        page = browser.new_page(viewport={"width": 1440, "height": 1600})
+        browser = p.chromium.launch(headless=False)
+        context = browser.new_context(locale="pt-BR", viewport={"width": 1440, "height": 1600})
+        page = context.new_page()
         page.goto(search_url, wait_until="domcontentloaded", timeout=120000)
         page.wait_for_timeout(5000)
 
