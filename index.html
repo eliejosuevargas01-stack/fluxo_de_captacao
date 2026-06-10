@@ -312,7 +312,7 @@
     // --- Tab 1: Proposals functions ---
     async function fetchLeads() {
       try {
-        const resp = await fetch(GET_URL, {
+        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
           method: 'GET',
           headers: { 'X-Action': 'get_proposta' }
         });
@@ -501,7 +501,7 @@
       
       try {
         showMessage('Buscando lead ' + id + '...', true);
-        const resp = await fetch(GET_URL, {
+        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
           method: 'GET',
           headers: {
             'X-Action': 'get',
@@ -606,7 +606,7 @@
         fetchBtn.textContent = 'Atualizando...';
         showMessage('Buscando todos os leads...', true);
         
-        const resp = await fetch(GET_URL, {
+        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
           method: 'GET',
           headers: {
             'X-Action': 'get_many'
