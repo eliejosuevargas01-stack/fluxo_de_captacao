@@ -314,7 +314,7 @@
       try {
         const resp = await fetch(GET_URL, {
           method: 'GET',
-          headers: { 'X-Action': 'get_pending' }
+          headers: { 'X-Action': 'get_proposta' }
         });
         if (!resp.ok) throw new Error('Erro ao buscar leads');
         const data = await resp.json();
