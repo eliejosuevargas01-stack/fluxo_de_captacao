@@ -136,10 +136,33 @@
       document.getElementById('status-msg').textContent = '';
     }
 
+    function fallbackCopyTextToClipboard(text) {
+      const textArea = document.createElement("textarea");
+      textArea.value = text;
+      textArea.style.top = "0";
+      textArea.style.left = "0";
+      textArea.style.position = "fixed";
+      document.body.appendChild(textArea);
+      textArea.focus();
+      textArea.select();
+      try {
+        const successful = document.execCommand('copy');
+        if (!successful) throw new Error('Não foi possível copiar');
+      } catch (err) {
+        throw new Error('Falha no fallback de cópia: ' + err.message);
+      } finally {
+        document.body.removeChild(textArea);
+      }
+    }
+
     async function copyAndOpenInstagram() {
       const proposal = document.getElementById('proposal-text').textContent;
       try {
-        await navigator.clipboard.writeText(proposal);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          await navigator.clipboard.writeText(proposal);
+        } else {
+          fallbackCopyTextToClipboard(proposal);
+        }
         // Determine Instagram username from current lead (instagram or link_destibo_botao)
         const currentLead = pendingLeads[index];
         const igLink = (currentLead.instagram || currentLead.link_destibo_botao || '').trim();
