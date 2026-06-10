@@ -11,13 +11,20 @@ from models import build_webhook_payload
 
 app = FastAPI(title="Lead Extraction API")
 
+from fastapi.responses import FileResponse
+import os
+
 @app.get("/")
-async def root() -> dict[str, str]:
-    return {
-        "status": "ok",
-        "service": "Lead Extraction API",
-        "message": "API is running",
-    }
+async def root():
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return {"message": "index.html not found"}
+
+@app.get("/index.html")
+async def index():
+    if os.path.exists("index.html"):
+        return FileResponse("index.html")
+    return {"message": "index.html not found"}
 
 @app.get("/health")
 async def health() -> dict[str, str]:
