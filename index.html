@@ -502,25 +502,29 @@
       }
       
       try {
-        showMessage('Buscando lead "' + term + '"...', true);
+        showMessage('Buscando "' + term + '" na memória local...', true);
         
-        // Define a URL dependendo de ser uma busca direta ou clique de lista (ID exato)
-        let url = `${GET_URL}?action=get&_t=${Date.now()}`;
-        if (specifiedId) {
-          url += `&id=${encodeURIComponent(specifiedId)}`;
-        } else {
-          url += `&q=${encodeURIComponent(term)}`;
+        // Se a lista geral na memória ainda estiver vazia, sincroniza uma única vez
+        if (allLeads.length === 0) {
+          showMessage('Sincronizando lista completa com o servidor...', true);
+          const resp = await fetch(`${GET_URL}?action=get_many&_t=${Date.now()}`, {
+            method: 'GET'
+          });
+          if (!resp.ok) throw new Error('Não foi possível obter a lista do servidor.');
+          const data = await resp.json();
+          allLeads = Array.isArray(data) ? data : (data ? [data] : []);
+          filterLeads(); // Atualiza a visualização do rodapé
         }
         
-        const resp = await fetch(url, {
-          method: 'GET'
+        // Busca local por correspondência de ID exato ou nome contendo o termo
+        const lead = allLeads.find(l => {
+          const idMatch = String(l.id || '').toLowerCase() === String(term).toLowerCase();
+          const nameMatch = String(l.nome_empresa || l.page_name || l.nome || '').toLowerCase().includes(term.toLowerCase());
+          return idMatch || nameMatch;
         });
-        if (!resp.ok) throw new Error('Erro ao buscar lead específico');
-        const data = await resp.json();
         
-        const lead = Array.isArray(data) ? data[0] : data;
-        if (!lead || (!lead.id && !lead.nome_empresa && !lead.nome)) {
-          throw new Error('Lead não encontrado.');
+        if (!lead) {
+          throw new Error('Nenhum lead encontrado com esse termo na lista carregada.');
         }
         
         currentEditLead = lead;
@@ -539,10 +543,10 @@
         
         if (specifiedId) {
           switchTab('manage');
-          document.getElementById('search-id').value = lead.id || specifiedId;
+          document.getElementById('search-id').value = lead.nome_empresa || lead.nome || specifiedId;
         }
       } catch (e) {
-        showMessage('Erro ao buscar lead: ' + e.message, true);
+        showMessage('Busca local falhou: ' + e.message, true);
         console.error(e);
       } finally {
         if (searchBtn && !specifiedId) {
