@@ -212,7 +212,7 @@
     <!-- TAB 2: Gerenciar Leads (Formulário + Consulta) -->
     <div id="tab-manage" style="display:none;">
       <div class="search-bar">
-        <input type="text" id="search-id" placeholder="Digite o ID do lead para consultar...">
+        <input type="text" id="search-id" placeholder="Digite o nome da empresa ou ID do lead para buscar...">
         <button id="btn-search" onclick="fetchSingleLead()">Buscar</button>
       </div>
       
@@ -486,9 +486,10 @@
 
     // --- Tab 2: Lead Management functions ---
     async function fetchSingleLead(specifiedId) {
-      const id = specifiedId || document.getElementById('search-id').value.trim();
-      if (!id) {
-        showMessage('Por favor, informe o ID do lead.', true);
+      const inputVal = document.getElementById('search-id').value.trim();
+      const term = specifiedId || inputVal;
+      if (!term) {
+        showMessage('Por favor, digite o nome da empresa ou ID do lead.', true);
         return;
       }
       
@@ -501,8 +502,17 @@
       }
       
       try {
-        showMessage('Buscando lead ' + id + '...', true);
-        const resp = await fetch(`${GET_URL}?action=get&id=${id}&_t=${Date.now()}`, {
+        showMessage('Buscando lead "' + term + '"...', true);
+        
+        // Define a URL dependendo de ser uma busca direta ou clique de lista (ID exato)
+        let url = `${GET_URL}?action=get&_t=${Date.now()}`;
+        if (specifiedId) {
+          url += `&id=${encodeURIComponent(specifiedId)}`;
+        } else {
+          url += `&q=${encodeURIComponent(term)}`;
+        }
+        
+        const resp = await fetch(url, {
           method: 'GET'
         });
         if (!resp.ok) throw new Error('Erro ao buscar lead específico');
@@ -515,7 +525,7 @@
         
         currentEditLead = lead;
         
-        // Populate form fields
+        // Preenche os campos do formulário
         document.getElementById('edit-nome').value = lead.nome_empresa || lead.page_name || lead.nome || '';
         document.getElementById('edit-instagram').value = lead.instagram || lead.link_destibo_botao || '';
         document.getElementById('edit-telefone').value = lead.telefone || '';
@@ -525,11 +535,11 @@
         document.getElementById('edit-proposta').value = lead.proposta_pronta || '';
         
         document.getElementById('edit-area').style.display = 'block';
-        showMessage('Lead ' + id + ' carregado com sucesso.', true);
+        showMessage('Lead "' + (lead.nome_empresa || lead.nome || term) + '" carregado com sucesso.', true);
         
         if (specifiedId) {
           switchTab('manage');
-          document.getElementById('search-id').value = id;
+          document.getElementById('search-id').value = lead.id || specifiedId;
         }
       } catch (e) {
         showMessage('Erro ao buscar lead: ' + e.message, true);
