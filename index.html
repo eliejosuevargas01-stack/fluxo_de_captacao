@@ -221,44 +221,8 @@
       <div id="edit-area" class="lead-card" style="display:none; margin-top:1rem;">
         <h3 style="margin-top:0; color:var(--primary);">Editar Informações</h3>
         
-        <div class="form-group">
-          <label for="edit-nome">Nome da Empresa</label>
-          <input type="text" id="edit-nome">
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-instagram">Instagram</label>
-          <input type="text" id="edit-instagram">
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-telefone">Telefone</label>
-          <input type="text" id="edit-telefone">
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-cidade">Cidade</label>
-          <input type="text" id="edit-cidade">
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-segmento">Segmento</label>
-          <input type="text" id="edit-segmento">
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-status">Status</label>
-          <select id="edit-status">
-            <option value="aguardando_retorno">Aguardando Retorno</option>
-            <option value="contatado">Contatado</option>
-            <option value="recusado">Recusado</option>
-            <option value="fechado">Fechado</option>
-          </select>
-        </div>
-        
-        <div class="form-group">
-          <label for="edit-proposta">Proposta Pronta</label>
-          <textarea id="edit-proposta" rows="6"></textarea>
+        <div id="dynamic-edit-form">
+          <!-- Form fields generated dynamically will go here -->
         </div>
         
         <button id="btn-save-edit" onclick="saveLeadEdit()" style="margin-top:0.5rem; width:100%;">Salvar Alterações</button>
@@ -529,17 +493,71 @@
         
         currentEditLead = lead;
         
-        // Preenche os campos do formulário
-        document.getElementById('edit-nome').value = lead.nome_empresa || lead.page_name || lead.nome || '';
-        document.getElementById('edit-instagram').value = lead.instagram || lead.link_destibo_botao || '';
-        document.getElementById('edit-telefone').value = lead.telefone || '';
-        document.getElementById('edit-cidade').value = lead.cidade || '';
-        document.getElementById('edit-segmento').value = lead.segmento || lead.categoria || '';
-        document.getElementById('edit-status').value = lead.status || 'aguardando_retorno';
-        document.getElementById('edit-proposta').value = lead.proposta_pronta || '';
+        // Geração dinâmica de TODOS os campos do formulário vindos no payload
+        const formContainer = document.getElementById('dynamic-edit-form');
+        formContainer.innerHTML = '';
+        
+        const importantKeys = ['id', 'nome_empresa', 'nome', 'instagram', 'telefone', 'site', 'cidade', 'segmento', 'status', 'proposta_pronta'];
+        const allKeys = Object.keys(lead);
+        const sortedKeys = [
+          ...importantKeys.filter(k => allKeys.includes(k)),
+          ...allKeys.filter(k => !importantKeys.includes(k))
+        ];
+        
+        sortedKeys.forEach(key => {
+          const value = lead[key];
+          const isLongText = typeof value === 'string' && (value.includes('\n') || value.length > 80 || key === 'proposta_pronta' || key === 'mensagem');
+          
+          const formGroup = document.createElement('div');
+          formGroup.className = 'form-group';
+          
+          const label = document.createElement('label');
+          label.setAttribute('for', `edit-field-${key}`);
+          label.textContent = key.replace(/_/g, ' ').toUpperCase();
+          formGroup.appendChild(label);
+          
+          if (key === 'status') {
+            const select = document.createElement('select');
+            select.id = `edit-field-${key}`;
+            const options = [
+              { val: 'aguardando_retorno', label: 'Aguardando Retorno' },
+              { val: 'contatado', label: 'Contatado' },
+              { val: 'recusado', label: 'Recusado' },
+              { val: 'fechado', label: 'Fechado' }
+            ];
+            if (value && !options.some(opt => opt.val === value)) {
+              options.push({ val: value, label: value });
+            }
+            options.forEach(opt => {
+              const option = document.createElement('option');
+              option.value = opt.val;
+              option.textContent = opt.label;
+              if (opt.val === value) option.selected = true;
+              select.appendChild(option);
+            });
+            formGroup.appendChild(select);
+          } else if (isLongText) {
+            const textarea = document.createElement('textarea');
+            textarea.id = `edit-field-${key}`;
+            textarea.rows = key === 'proposta_pronta' ? 8 : 4;
+            textarea.value = value || '';
+            formGroup.appendChild(textarea);
+          } else {
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.id = `edit-field-${key}`;
+            input.value = (typeof value === 'object' ? JSON.stringify(value) : value) || '';
+            formGroup.appendChild(input);
+          }
+          
+          formContainer.appendChild(formGroup);
+        });
         
         document.getElementById('edit-area').style.display = 'block';
         showMessage('Lead "' + (lead.nome_empresa || lead.nome || term) + '" carregado com sucesso.', true);
+        
+        // Foca e rola até a área de edição
+        document.getElementById('edit-area').scrollIntoView({ behavior: 'smooth' });
         
         if (specifiedId) {
           switchTab('manage');
@@ -567,16 +585,13 @@
         saveBtn.textContent = 'Salvando...';
         showMessage('Salvando alterações...', true);
         
-        const payload = {
-          ...currentEditLead,
-          nome_empresa: document.getElementById('edit-nome').value.trim(),
-          instagram: document.getElementById('edit-instagram').value.trim(),
-          telefone: document.getElementById('edit-telefone').value.trim(),
-          cidade: document.getElementById('edit-cidade').value.trim(),
-          segmento: document.getElementById('edit-segmento').value.trim(),
-          status: document.getElementById('edit-status').value,
-          proposta_pronta: document.getElementById('edit-proposta').value.trim()
-        };
+        const payload = { ...currentEditLead };
+        Object.keys(currentEditLead).forEach(key => {
+          const input = document.getElementById(`edit-field-${key}`);
+          if (input) {
+            payload[key] = input.value.trim();
+          }
+        });
         
         const resp = await fetch(`${POST_URL}?action=edit`, {
           method: 'PUT',
