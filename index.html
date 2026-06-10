@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Gestão de Leads – Instagram</title>
+  <title>Gestão de Leads</title>
   <style>
     :root {
       --bg: #0a0a0a;
@@ -27,7 +27,8 @@
     }
     .container {
       margin-top: 2rem;
-      width: min(90%, 600px);
+      margin-bottom: 2rem;
+      width: min(90%, 650px);
       background: var(--glass);
       backdrop-filter: blur(12px) saturate(180%);
       border: 1px solid var(--glass-border);
@@ -37,10 +38,41 @@
     }
     h1 {
       text-align: center;
-      margin-bottom: 1.5rem;
+      margin-bottom: 1rem;
+      margin-top: 0;
       font-weight: 600;
       color: var(--primary);
     }
+    
+    /* Navigation Tabs */
+    .tab-nav {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.5rem;
+      border-bottom: 1px solid var(--glass-border);
+      padding-bottom: 0.5rem;
+    }
+    .tab-btn {
+      background: transparent;
+      color: var(--text);
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      flex: 1;
+      text-align: center;
+    }
+    .tab-btn:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .tab-btn.active {
+      background: var(--primary);
+      color: var(--bg);
+      font-weight: 600;
+    }
+
     .lead-card {
       background: var(--glass);
       border: 1px solid var(--glass-border);
@@ -76,43 +108,223 @@
     }
     button:hover { background: var(--accent); transform: translateY(-2px); }
     button:active { transform: translateY(1px); }
-    .status { margin-top: .5rem; font-size: .9rem; color: #a0a0a0; }
+    button:disabled { background: #555; cursor: not-allowed; transform: none; color: #aaa; }
+    
+    .status { margin-top: .5rem; font-size: .9rem; color: #a0a0a0; min-height: 1.25rem; }
+
+    /* Form Fields for Management Tab */
+    .form-group {
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      text-align: left;
+    }
+    .form-group label {
+      font-size: 0.9rem;
+      color: #a0a0a0;
+      font-weight: 500;
+    }
+    .form-group input, .form-group select, .form-group textarea {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
+      padding: 0.75rem;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.95rem;
+      outline: none;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+      border-color: var(--primary);
+    }
+    .search-bar {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1rem;
+    }
+    .search-bar input {
+      flex: 1;
+    }
+    .search-bar button {
+      flex: none;
+      width: auto;
+      padding: 0.75rem 1.5rem;
+    }
+
+    /* Lead Lists & Tables */
+    .lead-item-link {
+      cursor: pointer;
+      color: var(--primary);
+      text-decoration: underline;
+    }
+    .lead-item-link:hover {
+      color: var(--accent);
+    }
+    .lead-list-all {
+      max-height: 280px;
+      overflow-y: auto;
+      text-align: left;
+      background: rgba(255,255,255,0.02);
+      padding: 0.5rem;
+      border-radius: var(--radius);
+      border: 1px solid var(--glass-border);
+    }
+    .lead-list-all ul {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+    .lead-list-all li {
+      padding: 0.5rem;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>Leads sem telefone</h1>
-    <div id="lead-area" class="lead-card">
-      <p>Carregando leads…</p>
+    <h1>Painel de Leads</h1>
+    
+    <div class="tab-nav">
+      <button id="btn-tab-proposals" class="tab-btn active" onclick="switchTab('proposals')">Enviar Propostas</button>
+      <button id="btn-tab-manage" class="tab-btn" onclick="switchTab('manage')">Gerenciar Leads</button>
     </div>
-    <div class="actions" id="action-buttons" style="display:none;">
-      <button id="open-instagram">Abrir Instagram</button>
-      <button id="sent">Marcar como enviado</button>
-      <button id="redo">Refazer proposta</button>
+
+    <!-- TAB 1: Enviar Propostas (Fluxo Antigo) -->
+    <div id="tab-proposals">
+      <div id="lead-area" class="lead-card">
+        <p>Carregando leads…</p>
+      </div>
+      <div class="actions" id="action-buttons" style="display:none;">
+        <button id="open-instagram">Abrir Instagram</button>
+        <button id="sent">Marcar como enviado</button>
+        <button id="redo">Refazer proposta</button>
+      </div>
+      <div class="status" id="status-msg"></div>
+      <div id="lead-lists" style="margin-top:1.5rem;"></div>
     </div>
-    <div class="status" id="status-msg"></div>
-    <div id="lead-lists" style="margin-top:1.5rem;"></div>
+
+    <!-- TAB 2: Gerenciar Leads (Formulário + Consulta) -->
+    <div id="tab-manage" style="display:none;">
+      <div class="search-bar">
+        <input type="text" id="search-id" placeholder="Digite o ID do lead para consultar...">
+        <button id="btn-search" onclick="fetchSingleLead()">Buscar</button>
+      </div>
+      
+      <div class="status" id="status-msg-manage"></div>
+      
+      <div id="edit-area" class="lead-card" style="display:none; margin-top:1rem;">
+        <h3 style="margin-top:0; color:var(--primary);">Editar Informações</h3>
+        
+        <div class="form-group">
+          <label for="edit-nome">Nome da Empresa</label>
+          <input type="text" id="edit-nome">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-instagram">Instagram</label>
+          <input type="text" id="edit-instagram">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-telefone">Telefone</label>
+          <input type="text" id="edit-telefone">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-cidade">Cidade</label>
+          <input type="text" id="edit-cidade">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-segmento">Segmento</label>
+          <input type="text" id="edit-segmento">
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-status">Status</label>
+          <select id="edit-status">
+            <option value="aguardando_retorno">Aguardando Retorno</option>
+            <option value="contatado">Contatado</option>
+            <option value="recusado">Recusado</option>
+            <option value="fechado">Fechado</option>
+          </select>
+        </div>
+        
+        <div class="form-group">
+          <label for="edit-proposta">Proposta Pronta</label>
+          <textarea id="edit-proposta" rows="6"></textarea>
+        </div>
+        
+        <button id="btn-save-edit" onclick="saveLeadEdit()" style="margin-top:0.5rem; width:100%;">Salvar Alterações</button>
+      </div>
+
+      <div class="all-leads-section" style="margin-top: 2rem; text-align:left;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+          <h3 style="margin:0; color:var(--primary);">Todos os Leads</h3>
+          <button id="btn-fetch-all" onclick="fetchAllLeads()" style="flex:none; padding:0.4rem 1rem; font-size:0.9rem; width:auto;">Atualizar Lista</button>
+        </div>
+        <div class="lead-list-all" id="all-leads-list">
+          <p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Clique em "Atualizar Lista" para carregar.</p>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script>
-    const GET_URL = 'https://myn8n.seommerce.shop/webhook/leads-prontos-instagram'; // assumed GET returns JSON
+    const GET_URL = 'https://myn8n.seommerce.shop/webhook/leads-prontos-instagram';
     const POST_URL = 'https://myn8n.seommerce.shop/webhook/leads-prontos-instagram';
+    
     let pendingLeads = [];
     let contactedLeads = [];
     let index = 0;
+    let currentEditLead = null;
 
+    // Tabs switching
+    function switchTab(tab) {
+      if (tab === 'proposals') {
+        document.getElementById('tab-proposals').style.display = 'block';
+        document.getElementById('tab-manage').style.display = 'none';
+        document.getElementById('btn-tab-proposals').classList.add('active');
+        document.getElementById('btn-tab-manage').classList.remove('active');
+      } else {
+        document.getElementById('tab-proposals').style.display = 'none';
+        document.getElementById('tab-manage').style.display = 'block';
+        document.getElementById('btn-tab-proposals').classList.remove('active');
+        document.getElementById('btn-tab-manage').classList.add('active');
+      }
+    }
+
+    // Helper to print global messages
+    function showMessage(msg, isManageTab = false) {
+      if (isManageTab) {
+        document.getElementById('status-msg-manage').textContent = msg;
+      } else {
+        document.getElementById('status-msg').textContent = msg;
+      }
+    }
+
+    // --- Tab 1: Proposals functions ---
     async function fetchLeads() {
       try {
-        const resp = await fetch(GET_URL);
+        const resp = await fetch(GET_URL, {
+          method: 'GET',
+          headers: { 'X-Action': 'get_pending' }
+        });
         if (!resp.ok) throw new Error('Erro ao buscar leads');
         const data = await resp.json();
-        // Normalize to array: webhook may return a single object or an array
         const arr = Array.isArray(data) ? data : (data ? [data] : []);
         pendingLeads = arr;
         contactedLeads = [];
         index = 0;
         if (pendingLeads.length === 0) {
-          showMessage('Nenhum lead encontrado.');
+          document.getElementById('lead-area').innerHTML = '<p>Nenhum lead pendente encontrado.</p>';
+          document.getElementById('action-buttons').style.display = 'none';
           renderLists();
           return;
         }
@@ -163,7 +375,6 @@
         } else {
           fallbackCopyTextToClipboard(proposal);
         }
-        // Determine Instagram username from current lead (instagram or link_destibo_botao)
         const currentLead = pendingLeads[index];
         const igLink = (currentLead.instagram || currentLead.link_destibo_botao || '').trim();
         let username = '';
@@ -188,14 +399,15 @@
       try {
         const resp = await fetch(POST_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Action': 'edit'
+          },
           body: JSON.stringify({ id: lead.id, status: 'contatado' })
         });
         if (!resp.ok) throw new Error('Falha ao atualizar status');
         showMessage('Lead marcado como contatado.');
-        // move lead to contacted list
         contactedLeads.push(lead);
-        // avançar para próximo lead
         index++;
         if (index < pendingLeads.length) {
           renderLead();
@@ -210,29 +422,24 @@
       }
     }
 
-    function showMessage(msg) {
-  document.getElementById('status-msg').textContent = msg;
-}
-
-// Render collapsible lists for pending and contacted leads
-function renderLists() {
-  const container = document.getElementById('lead-lists');
-  const pendingCount = pendingLeads.length - index;
-  const contactedCount = contactedLeads.length;
-  container.innerHTML = `
-    <details ${pendingCount > 0 ? 'open' : ''}>
-      <summary>Pendentes (${pendingCount})</summary>
-      <ul>
-        ${pendingLeads.slice(index).map(l => `<li><strong>${l.id}</strong>: ${l.proposta_pronta?.substring(0,30) || ''}…</li>`).join('')}
-      </ul>
-    </details>
-    <details ${contactedCount > 0 ? 'open' : ''} style="margin-top:0.5rem;">
-      <summary>Contactados (${contactedCount})</summary>
-      <ul>
-        ${contactedLeads.map(l => `<li><strong>${l.id}</strong>: ${l.proposta_pronta?.substring(0,30) || ''}…</li>`).join('')}
-      </ul>
-    </details>`;
-}
+    function renderLists() {
+      const container = document.getElementById('lead-lists');
+      const pendingCount = pendingLeads.length - index;
+      const contactedCount = contactedLeads.length;
+      container.innerHTML = `
+        <details ${pendingCount > 0 ? 'open' : ''}>
+          <summary>Pendentes (${pendingCount})</summary>
+          <ul>
+            ${pendingLeads.slice(index).map(l => `<li><strong>${l.id}</strong>: ${l.proposta_pronta?.substring(0,30) || ''}…</li>`).join('')}
+          </ul>
+        </details>
+        <details ${contactedCount > 0 ? 'open' : ''} style="margin-top:0.5rem;">
+          <summary>Contactados (${contactedCount})</summary>
+          <ul>
+            ${contactedLeads.map(l => `<li><strong>${l.id}</strong>: ${l.proposta_pronta?.substring(0,30) || ''}…</li>`).join('')}
+          </ul>
+        </details>`;
+    }
 
     async function redoProposal() {
       const lead = pendingLeads[index];
@@ -243,29 +450,24 @@ function renderLists() {
         btn.textContent = 'Refazendo...';
         showMessage('Solicitando nova proposta...');
         
-        // copy all fields except proposta_pronta
         const { proposta_pronta, ...payload } = lead;
         payload.status = 'refazer';
         
         const resp = await fetch(POST_URL, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 
+            'Content-Type': 'application/json',
+            'X-Action': 'edit'
+          },
           body: JSON.stringify(payload)
         });
         if (!resp.ok) throw new Error('Falha ao refazer proposta');
-        
-        // Tenta ler o JSON de retorno
         const data = await resp.json().catch(() => null);
-        
-        // n8n pode retornar o objeto diretamente ou dentro de um array
         const updatedLead = Array.isArray(data) ? data[0] : data;
         
         if (updatedLead && updatedLead.proposta_pronta) {
-          // Atualiza a proposta na memória
           pendingLeads[index].proposta_pronta = updatedLead.proposta_pronta;
-          // Se outros campos foram atualizados no webhook, atualiza também
           if (updatedLead.id) pendingLeads[index] = updatedLead;
-          
           renderLead();
           renderLists();
           showMessage('Proposta refeita e atualizada com sucesso!');
@@ -279,11 +481,175 @@ function renderLists() {
         btn.disabled = false;
         btn.textContent = originalText;
       }
-    } document.getElementById('open-instagram').addEventListener('click', copyAndOpenInstagram);
+    }
+
+    // --- Tab 2: Lead Management functions ---
+    async function fetchSingleLead(specifiedId) {
+      const id = specifiedId || document.getElementById('search-id').value.trim();
+      if (!id) {
+        showMessage('Por favor, informe o ID do lead.', true);
+        return;
+      }
+      
+      const searchBtn = document.getElementById('btn-search');
+      let originalText = '';
+      if (searchBtn && !specifiedId) {
+        originalText = searchBtn.textContent;
+        searchBtn.disabled = true;
+        searchBtn.textContent = 'Buscando...';
+      }
+      
+      try {
+        showMessage('Buscando lead ' + id + '...', true);
+        const resp = await fetch(GET_URL, {
+          method: 'GET',
+          headers: {
+            'X-Action': 'get',
+            'X-Lead-ID': id
+          }
+        });
+        if (!resp.ok) throw new Error('Erro ao buscar lead específico');
+        const data = await resp.json();
+        
+        const lead = Array.isArray(data) ? data[0] : data;
+        if (!lead || (!lead.id && !lead.nome_empresa && !lead.nome)) {
+          throw new Error('Lead não encontrado.');
+        }
+        
+        currentEditLead = lead;
+        
+        // Populate form fields
+        document.getElementById('edit-nome').value = lead.nome_empresa || lead.page_name || lead.nome || '';
+        document.getElementById('edit-instagram').value = lead.instagram || lead.link_destibo_botao || '';
+        document.getElementById('edit-telefone').value = lead.telefone || '';
+        document.getElementById('edit-cidade').value = lead.cidade || '';
+        document.getElementById('edit-segmento').value = lead.segmento || lead.categoria || '';
+        document.getElementById('edit-status').value = lead.status || 'aguardando_retorno';
+        document.getElementById('edit-proposta').value = lead.proposta_pronta || '';
+        
+        document.getElementById('edit-area').style.display = 'block';
+        showMessage('Lead ' + id + ' carregado com sucesso.', true);
+        
+        if (specifiedId) {
+          switchTab('manage');
+          document.getElementById('search-id').value = id;
+        }
+      } catch (e) {
+        showMessage('Erro ao buscar lead: ' + e.message, true);
+        console.error(e);
+      } finally {
+        if (searchBtn && !specifiedId) {
+          searchBtn.disabled = false;
+          searchBtn.textContent = originalText;
+        }
+      }
+    }
+
+    async function saveLeadEdit() {
+      if (!currentEditLead) return;
+      
+      const saveBtn = document.getElementById('btn-save-edit');
+      const originalText = saveBtn.textContent;
+      
+      try {
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Salvando...';
+        showMessage('Salvando alterações...', true);
+        
+        const payload = {
+          ...currentEditLead,
+          nome_empresa: document.getElementById('edit-nome').value.trim(),
+          instagram: document.getElementById('edit-instagram').value.trim(),
+          telefone: document.getElementById('edit-telefone').value.trim(),
+          cidade: document.getElementById('edit-cidade').value.trim(),
+          segmento: document.getElementById('edit-segmento').value.trim(),
+          status: document.getElementById('edit-status').value,
+          proposta_pronta: document.getElementById('edit-proposta').value.trim()
+        };
+        
+        const resp = await fetch(POST_URL, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Action': 'edit'
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!resp.ok) throw new Error('Falha ao salvar edição');
+        
+        showMessage('Alterações do lead salvas com sucesso!', true);
+        
+        // Update local memory for proposal flow if applicable
+        const propIndex = pendingLeads.findIndex(l => l.id === payload.id);
+        if (propIndex !== -1) {
+          pendingLeads[propIndex] = payload;
+          if (propIndex === index) {
+            renderLead();
+          }
+          renderLists();
+        }
+      } catch (e) {
+        showMessage('Erro ao salvar lead: ' + e.message, true);
+        console.error(e);
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.textContent = originalText;
+      }
+    }
+
+    async function fetchAllLeads() {
+      const fetchBtn = document.getElementById('btn-fetch-all');
+      const originalText = fetchBtn.textContent;
+      try {
+        fetchBtn.disabled = true;
+        fetchBtn.textContent = 'Atualizando...';
+        showMessage('Buscando todos os leads...', true);
+        
+        const resp = await fetch(GET_URL, {
+          method: 'GET',
+          headers: {
+            'X-Action': 'get_many'
+          }
+        });
+        if (!resp.ok) throw new Error('Erro ao buscar lista de leads');
+        const data = await resp.json();
+        const arr = Array.isArray(data) ? data : (data ? [data] : []);
+        
+        const listDiv = document.getElementById('all-leads-list');
+        if (arr.length === 0) {
+          listDiv.innerHTML = '<p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Nenhum lead encontrado.</p>';
+          return;
+        }
+        
+        listDiv.innerHTML = '<ul>' + arr.map(l => {
+          const name = l.nome_empresa || l.page_name || l.nome || 'Lead sem nome';
+          const statusText = l.status || 'Pendente';
+          return `
+            <li>
+              <span>
+                <span class="lead-item-link" onclick="fetchSingleLead('${l.id}')"><strong>${l.id}</strong></span>: 
+                ${name} (${statusText})
+              </span>
+            </li>
+          `;
+        }).join('') + '</ul>';
+        showMessage('Lista de leads atualizada.', true);
+      } catch (e) {
+        showMessage('Erro ao atualizar lista: ' + e.message, true);
+        console.error(e);
+      } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = originalText;
+      }
+    }
+
+    // Set listeners
+    document.getElementById('open-instagram').addEventListener('click', copyAndOpenInstagram);
     document.getElementById('sent').addEventListener('click', markSent);
     document.getElementById('redo').addEventListener('click', redoProposal);
 
-    // Inicia
+    // Initial load
     fetchLeads();
   </script>
 </body>
