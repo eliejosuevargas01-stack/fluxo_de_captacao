@@ -236,20 +236,48 @@ function renderLists() {
 
     async function redoProposal() {
       const lead = pendingLeads[index];
+      const btn = document.getElementById('redo');
+      const originalText = btn.textContent;
       try {
+        btn.disabled = true;
+        btn.textContent = 'Refazendo...';
+        showMessage('Solicitando nova proposta...');
+        
         // copy all fields except proposta_pronta
         const { proposta_pronta, ...payload } = lead;
         payload.status = 'refazer';
+        
         const resp = await fetch(POST_URL, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
         if (!resp.ok) throw new Error('Falha ao refazer proposta');
-        showMessage('Proposta reenviada (PUT, sem proposta).');
+        
+        // Tenta ler o JSON de retorno
+        const data = await resp.json().catch(() => null);
+        
+        // n8n pode retornar o objeto diretamente ou dentro de um array
+        const updatedLead = Array.isArray(data) ? data[0] : data;
+        
+        if (updatedLead && updatedLead.proposta_pronta) {
+          // Atualiza a proposta na memória
+          pendingLeads[index].proposta_pronta = updatedLead.proposta_pronta;
+          // Se outros campos foram atualizados no webhook, atualiza também
+          if (updatedLead.id) pendingLeads[index] = updatedLead;
+          
+          renderLead();
+          renderLists();
+          showMessage('Proposta refeita e atualizada com sucesso!');
+        } else {
+          showMessage('Solicitação de refazer enviada (Aguarde o processamento em background).');
+        }
       } catch (e) {
         showMessage('Erro ao refazer proposta: ' + e.message);
         console.error(e);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = originalText;
       }
     } document.getElementById('open-instagram').addEventListener('click', copyAndOpenInstagram);
     document.getElementById('sent').addEventListener('click', markSent);
