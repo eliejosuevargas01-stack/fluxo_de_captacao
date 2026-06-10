@@ -269,6 +269,9 @@
           <h3 style="margin:0; color:var(--primary);">Todos os Leads</h3>
           <button id="btn-fetch-all" onclick="fetchAllLeads()" style="flex:none; padding:0.4rem 1rem; font-size:0.9rem; width:auto;">Atualizar Lista</button>
         </div>
+        <!-- Input para filtrar a lista localmente -->
+        <input type="text" id="lead-filter" placeholder="Filtrar leads por nome, ID, segmento, cidade, status..." oninput="filterLeads()" style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 0.6rem; color: var(--text); width: 100%; box-sizing: border-box; margin-bottom: 0.75rem; outline: none;">
+        
         <div class="lead-list-all" id="all-leads-list">
           <p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Clique em "Atualizar Lista" para carregar.</p>
         </div>
@@ -284,6 +287,7 @@
     let contactedLeads = [];
     let index = 0;
     let currentEditLead = null;
+    let allLeads = []; // Armazena a lista completa de leads carregada
 
     // Tabs switching
     function switchTab(tab) {
@@ -605,24 +609,8 @@
         const data = await resp.json();
         const arr = Array.isArray(data) ? data : (data ? [data] : []);
         
-        const listDiv = document.getElementById('all-leads-list');
-        if (arr.length === 0) {
-          listDiv.innerHTML = '<p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Nenhum lead encontrado.</p>';
-          return;
-        }
-        
-        listDiv.innerHTML = '<ul>' + arr.map(l => {
-          const name = l.nome_empresa || l.page_name || l.nome || 'Lead sem nome';
-          const statusText = l.status || 'Pendente';
-          return `
-            <li>
-              <span>
-                <span class="lead-item-link" onclick="fetchSingleLead('${l.id}')"><strong>${l.id}</strong></span>: 
-                ${name} (${statusText})
-              </span>
-            </li>
-          `;
-        }).join('') + '</ul>';
+        allLeads = arr;
+        filterLeads();
         showMessage('Lista de leads atualizada.', true);
       } catch (e) {
         showMessage('Erro ao atualizar lista: ' + e.message, true);
@@ -631,6 +619,50 @@
         fetchBtn.disabled = false;
         fetchBtn.textContent = originalText;
       }
+    }
+
+    function filterLeads() {
+      const filterText = document.getElementById('lead-filter').value.toLowerCase().trim();
+      const listDiv = document.getElementById('all-leads-list');
+      
+      if (allLeads.length === 0) {
+        listDiv.innerHTML = '<p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Nenhum lead carregado.</p>';
+        return;
+      }
+      
+      const filtered = allLeads.filter(l => {
+        const id = String(l.id || '').toLowerCase();
+        const name = String(l.nome_empresa || l.page_name || l.nome || '').toLowerCase();
+        const city = String(l.cidade || '').toLowerCase();
+        const segment = String(l.segmento || l.categoria || '').toLowerCase();
+        const status = String(l.status || '').toLowerCase();
+        const phone = String(l.telefone || '').toLowerCase();
+        
+        return id.includes(filterText) || 
+               name.includes(filterText) || 
+               city.includes(filterText) || 
+               segment.includes(filterText) || 
+               status.includes(filterText) ||
+               phone.includes(filterText);
+      });
+      
+      if (filtered.length === 0) {
+        listDiv.innerHTML = '<p style="color:#a0a0a0; text-align:center; margin:1rem 0;">Nenhum lead corresponde à busca.</p>';
+        return;
+      }
+      
+      listDiv.innerHTML = '<ul>' + filtered.map(l => {
+        const name = l.nome_empresa || l.page_name || l.nome || 'Lead sem nome';
+        const statusText = l.status || 'Pendente';
+        return `
+          <li>
+            <span>
+              <span class="lead-item-link" onclick="fetchSingleLead('${l.id}')"><strong>${l.id}</strong></span>: 
+              ${name} (${statusText})
+            </span>
+          </li>
+        `;
+      }).join('') + '</ul>';
     }
 
     // Set listeners
