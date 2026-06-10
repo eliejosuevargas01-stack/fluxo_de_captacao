@@ -312,9 +312,8 @@
     // --- Tab 1: Proposals functions ---
     async function fetchLeads() {
       try {
-        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
-          method: 'GET',
-          headers: { 'X-Action': 'get_proposta' }
+        const resp = await fetch(`${GET_URL}?action=get_proposta&_t=${Date.now()}`, {
+          method: 'GET'
         });
         if (!resp.ok) throw new Error('Erro ao buscar leads');
         const data = await resp.json();
@@ -397,11 +396,10 @@
     async function markSent() {
       const lead = pendingLeads[index];
       try {
-        const resp = await fetch(POST_URL, {
+        const resp = await fetch(`${POST_URL}?action=edit`, {
           method: 'POST',
           headers: { 
-            'Content-Type': 'application/json',
-            'X-Action': 'edit'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify({ id: lead.id, status: 'contatado' })
         });
@@ -453,11 +451,10 @@
         const { proposta_pronta, ...payload } = lead;
         payload.status = 'refazer';
         
-        const resp = await fetch(POST_URL, {
+        const resp = await fetch(`${POST_URL}?action=edit`, {
           method: 'PUT',
           headers: { 
-            'Content-Type': 'application/json',
-            'X-Action': 'edit'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
         });
@@ -501,12 +498,8 @@
       
       try {
         showMessage('Buscando lead ' + id + '...', true);
-        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
-          method: 'GET',
-          headers: {
-            'X-Action': 'get',
-            'X-Lead-ID': id
-          }
+        const resp = await fetch(`${GET_URL}?action=get&id=${id}&_t=${Date.now()}`, {
+          method: 'GET'
         });
         if (!resp.ok) throw new Error('Erro ao buscar lead específico');
         const data = await resp.json();
@@ -567,11 +560,10 @@
           proposta_pronta: document.getElementById('edit-proposta').value.trim()
         };
         
-        const resp = await fetch(POST_URL, {
+        const resp = await fetch(`${POST_URL}?action=edit`, {
           method: 'PUT',
           headers: {
-            'Content-Type': 'application/json',
-            'X-Action': 'edit'
+            'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
         });
@@ -606,11 +598,8 @@
         fetchBtn.textContent = 'Atualizando...';
         showMessage('Buscando todos os leads...', true);
         
-        const resp = await fetch(`${GET_URL}?_t=${Date.now()}`, {
-          method: 'GET',
-          headers: {
-            'X-Action': 'get_many'
-          }
+        const resp = await fetch(`${GET_URL}?action=get_many&_t=${Date.now()}`, {
+          method: 'GET'
         });
         if (!resp.ok) throw new Error('Erro ao buscar lista de leads');
         const data = await resp.json();
