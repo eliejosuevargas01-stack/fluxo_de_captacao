@@ -64,6 +64,8 @@ class WebhookPayload(BaseModel):
     lead_id: str
     data_coleta: str
     nicho: str
+    origem: Optional[str] = None
+    status: Optional[str] = None
     empresa: Empresa
     analise_anuncio: AnaliseAnuncio
     presenca_digital: PresencaDigital
@@ -164,6 +166,8 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         lead_id=f"meta_{lead_id}",
         data_coleta=datetime.datetime.now().isoformat(),
         nicho=enriched_card.get("niche", "geral"),
+        origem="meta_ads_library",
+        status="Prospectado",
         empresa=Empresa(
             nome=enriched_card.get("page_name") or "Desconhecido",
             telefone_contato=enriched_card.get("contact_phone"),
