@@ -29,7 +29,7 @@ class PresencaDigital(BaseModel):
     tem_site_proprio: bool
     url_site: Optional[str] = None
     status_site: Optional[int] = None
-    erros_identificados_site: ErrosIdentificadosSite
+    erros_identificados_site: Optional[ErrosIdentificadosSite] = None
 
 class FunilWhatsappDirect(BaseModel):
     tipo_redirecionamento_anuncio: str
@@ -66,6 +66,7 @@ class WebhookPayload(BaseModel):
     nicho: str
     origem: Optional[str] = None
     status: Optional[str] = None
+    plataforma_destino: str
     empresa: Empresa
     analise_anuncio: AnaliseAnuncio
     presenca_digital: PresencaDigital
@@ -110,10 +111,27 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         teste_executado = False
         plataforma_testada = None
 
-    erros = ErrosIdentificadosSite(
-        nao_possui_formulario_captura=not (enriched_card.get("contact_has_form") == "sim"),
-        nao_possui_botao_whatsapp=not (enriched_card.get("contact_has_whatsapp") == "sim"),
-    )
+    cta_text = str(enriched_card.get("cta_text", "")).lower()
+    dest_type = enriched_card.get("destination_type", "")
+    dest_url = str(enriched_card.get("destination_url", "")).lower()
+
+    if "whatsapp" in cta_text or dest_type == "whatsapp" or "wa.me" in dest_url or "api.whatsapp.com" in dest_url:
+        plataforma_destino = "whatsapp"
+    elif dest_type == "instagram_profile" or "instagram.com" in dest_url:
+        plataforma_destino = "instagram"
+    elif dest_type == "facebook_page" or "facebook.com" in dest_url:
+        plataforma_destino = "facebook"
+    elif dest_type == "website" or enriched_card.get("destination_url"):
+        plataforma_destino = "site_externo"
+    else:
+        plataforma_destino = "outro"
+
+    erros = None
+    if plataforma_destino == "site_externo":
+        erros = ErrosIdentificadosSite(
+            nao_possui_formulario_captura=not (enriched_card.get("contact_has_form") == "sim"),
+            nao_possui_botao_whatsapp=not (enriched_card.get("contact_has_whatsapp") == "sim"),
+        )
 
     presenca = PresencaDigital(
         tem_site_proprio=(enriched_card.get("destination_type") == "website" and enriched_card.get("status_code", 0) == 200),
@@ -121,9 +139,6 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         status_site=enriched_card.get("status_code"),
         erros_identificados_site=erros
     )
-
-    cta_text = str(enriched_card.get("cta_text", "")).lower()
-    dest_type = enriched_card.get("destination_type", "")
 
     if "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]:
         tipo_redirecionamento = "chat_direto"
@@ -168,6 +183,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         nicho=enriched_card.get("niche", "geral"),
         origem="meta_ads_library",
         status="Prospectado",
+        plataforma_destino=plataforma_destino,
         empresa=Empresa(
             nome=enriched_card.get("page_name") or "Desconhecido",
             telefone_contato=enriched_card.get("contact_phone"),
@@ -186,20 +202,40 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         metricas_atendimento_teste=metricas,
         diagnostico_do_pain_detector=diagnostico
     )
-    return payload.model_dump()
+    res = payload.model_dump()
+    if plataforma_destino != "site_externo":
+        if "presenca_digital" in res and "erros_identificados_site" in res["presenca_digital"]:
+            res["presenca_digital"].pop("erros_identificados_site", None)
+    return res
 
 def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     lead_id = lead.get("nome") or lead.get("telefone") or "unknown"
     import re
     safe_id = re.sub(r'[^a-zA-Z0-9]', '_', lead_id).lower()
     
-    erros = ErrosIdentificadosSite(
-        nao_possui_formulario_captura=(lead.get("formulario") == "nao"),
-        nao_possui_botao_whatsapp=(lead.get("whatsapp") == "nao"),
-    )
+    has_site = (lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim")
+    site_url = str(lead.get("site") or "").lower()
+    
+    if "wa.me" in site_url or "api.whatsapp.com" in site_url or "whatsapp.com" in site_url:
+        plataforma_destino = "whatsapp"
+    elif "instagram.com" in site_url:
+        plataforma_destino = "instagram"
+    elif "facebook.com" in site_url:
+        plataforma_destino = "facebook"
+    elif has_site and lead.get("site"):
+        plataforma_destino = "site_externo"
+    else:
+        plataforma_destino = "nenhum"
+
+    erros = None
+    if plataforma_destino == "site_externo":
+        erros = ErrosIdentificadosSite(
+            nao_possui_formulario_captura=(lead.get("formulario") == "nao"),
+            nao_possui_botao_whatsapp=(lead.get("whatsapp") == "nao"),
+        )
     
     presenca = PresencaDigital(
-        tem_site_proprio=(lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim"),
+        tem_site_proprio=has_site,
         url_site=lead.get("site"),
         status_site=None,
         erros_identificados_site=erros
@@ -239,6 +275,9 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
         lead_id=f"gmaps_{safe_id}",
         data_coleta=datetime.datetime.now().isoformat(),
         nicho=lead.get("categoria") or "geral",
+        origem="google_maps",
+        status="Prospectado",
+        plataforma_destino=plataforma_destino,
         empresa=Empresa(
             nome=lead.get("nome") or "Desconhecido",
             telefone_contato=lead.get("telefone"),
@@ -258,5 +297,8 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
         metricas_atendimento_teste=metricas,
         diagnostico_do_pain_detector=diagnostico
     )
-    return payload.model_dump()
-
+    res = payload.model_dump()
+    if plataforma_destino != "site_externo":
+        if "presenca_digital" in res and "erros_identificados_site" in res["presenca_digital"]:
+            res["presenca_digital"].pop("erros_identificados_site", None)
+    return res

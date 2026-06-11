@@ -95,9 +95,6 @@ def process_meta_ads(request: ScrapeRequest):
                 test_results = None
 
                 payload = build_webhook_payload(enriched, test_results)
-                # Add required metadata
-                payload["origem"] = "meta_ads_library"
-                payload["status"] = "Prospectado"
                 final_report.append(payload)
                 
                 # Se alcançou o máximo, para de processar os cards
@@ -201,8 +198,6 @@ def process_google_maps(request: ScrapeRequest):
         final_report = []
         for lead in diagnosed:
             payload = build_gmaps_webhook_payload(lead)
-            payload["origem"] = "google_maps"
-            payload["status"] = "Prospectado"
             final_report.append(payload)
 
         # Enviar para o webhook
