@@ -183,3 +183,76 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         diagnostico_do_pain_detector=diagnostico
     )
     return payload.model_dump()
+
+def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
+    lead_id = lead.get("nome") or lead.get("telefone") or "unknown"
+    import re
+    safe_id = re.sub(r'[^a-zA-Z0-9]', '_', lead_id).lower()
+    
+    erros = ErrosIdentificadosSite(
+        nao_possui_formulario_captura=(lead.get("formulario") == "nao"),
+        nao_possui_botao_whatsapp=(lead.get("whatsapp") == "nao"),
+    )
+    
+    presenca = PresencaDigital(
+        tem_site_proprio=(lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim"),
+        url_site=lead.get("site"),
+        status_site=None,
+        erros_identificados_site=erros
+    )
+    
+    funil = FunilWhatsappDirect(
+        tipo_redirecionamento_anuncio="google_maps_organic",
+        tem_link_whatsapp=(lead.get("whatsapp") == "sim"),
+        numero_whatsapp_detectado=lead.get("telefone"),
+        mensagem_pre_preenchida=None
+    )
+    
+    metricas = MetricasAtendimentoTeste(
+        teste_executado=False,
+        plataforma_testada=None,
+        horario_envio_teste=datetime.datetime.now().isoformat(),
+        tempo_resposta=TempoResposta(),
+        qualidade_atendimento_inicial=QualidadeAtendimentoInicial()
+    )
+    
+    pontos_criticos = []
+    if lead.get("dor"):
+        pontos_criticos.append(lead["dor"])
+        
+    try:
+        score_val = float(lead.get("score") or 0)
+    except Exception:
+        score_val = 0.0
+
+    diagnostico = DiagnosticoPainDetector(
+        pontos_criticos=pontos_criticos,
+        perda_financeira_estimada="Alta" if score_val > 100 else "Media",
+        solucao_ideal_recomendada=lead.get("oferta", "")
+    )
+    
+    payload = WebhookPayload(
+        lead_id=f"gmaps_{safe_id}",
+        data_coleta=datetime.datetime.now().isoformat(),
+        nicho=lead.get("categoria") or "geral",
+        empresa=Empresa(
+            nome=lead.get("nome") or "Desconhecido",
+            telefone_contato=lead.get("telefone"),
+            email_contato=None,
+            facebook_page_url=None,
+            localizacao=lead.get("endereco") or "",
+        ),
+        analise_anuncio=AnaliseAnuncio(
+            id_anuncio_meta="",
+            link_biblioteca_anuncios="",
+            data_inicio_veiculacao="",
+            plataformas_veiculadas=[],
+            link_destino_botao=""
+        ),
+        presenca_digital=presenca,
+        funil_whatsapp_direct=funil,
+        metricas_atendimento_teste=metricas,
+        diagnostico_do_pain_detector=diagnostico
+    )
+    return payload.model_dump()
+

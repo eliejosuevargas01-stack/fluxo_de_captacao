@@ -7,7 +7,8 @@ from datetime import datetime
 
 from meta_ads_pipeline import load_cards, enrich_card
 from collectors.facebook_ads_library import scrape_query
-from models import build_webhook_payload
+from models import build_webhook_payload, build_gmaps_webhook_payload
+from lead_pipeline import qualify_leads, diagnose_top_leads
 
 app = FastAPI(title="Lead Extraction API")
 
@@ -94,6 +95,9 @@ def process_meta_ads(request: ScrapeRequest):
                 test_results = None
 
                 payload = build_webhook_payload(enriched, test_results)
+                # Add required metadata
+                payload["origem"] = "meta_ads_library"
+                payload["status"] = "Prospectado"
                 final_report.append(payload)
                 
                 # Se alcançou o máximo, para de processar os cards
@@ -117,7 +121,105 @@ async def scrape_meta_ads(request: ScrapeRequest, background_tasks: BackgroundTa
     background_tasks.add_task(process_meta_ads, request)
     return {"status": "accepted", "message": "Scraping meta ads in background"}
 
+import subprocess
+import csv
+
+def process_google_maps(request: ScrapeRequest):
+    start_time = datetime.now()
+    print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Google Maps...")
+    try:
+        # 1. Escrever queries no arquivo de entrada
+        input_file = os.path.join("inputs", "buscas_google_maps_api.txt")
+        os.makedirs(os.path.dirname(input_file), exist_ok=True)
+        with open(input_file, "w", encoding="utf-8") as f:
+            for q in request.queries:
+                f.write(q + "\n")
+        
+        # 2. Definir caminhos de saída
+        output_dir = os.path.abspath("outputs")
+        os.makedirs(output_dir, exist_ok=True)
+        raw_output = os.path.join(output_dir, "leads_raw.csv")
+        
+        # Remover arquivo antigo se existir para evitar falsos positivos
+        if os.path.exists(raw_output):
+            try:
+                os.remove(raw_output)
+            except Exception:
+                pass
+
+        # 3. Rodar Docker do scraper
+        print(f"Rodando docker gosom/google-maps-scraper para as queries...")
+        cmd = [
+            "docker", "--context", "default", "run", "--rm",
+            "-v", "gmaps-playwright-cache:/opt",
+            "-v", f"{os.path.abspath(input_file)}:/queries.txt:ro",
+            "-v", f"{output_dir}:/out",
+            "gosom/google-maps-scraper",
+            "-input", "/queries.txt",
+            "-results", "/out/leads_raw.csv",
+            "-depth", "1",
+            "-exit-on-inactivity", "3m"
+        ]
+        subprocess.run(cmd, check=True)
+        
+        # 4. Normalizar, qualificar e gerar payloads em memória
+        if not os.path.exists(raw_output):
+            raise FileNotFoundError("Scraper executado mas leads_raw.csv nao foi gerado.")
+
+        print("Processando leads em memória (sem gravar CSV)...")
+        field_aliases = {
+            "nome": ["title", "name"],
+            "telefone": ["phone"],
+            "site": ["website", "site"],
+            "endereco": ["address", "complete_address"],
+            "avaliacoes": ["review_count", "reviews", "reviewcount"],
+            "nota": ["review_rating", "rating"],
+            "categoria": ["category"],
+        }
+        
+        raw_leads = []
+        with open(raw_output, "r", encoding="utf-8", newline="") as fh:
+            reader = csv.DictReader(fh)
+            for row in reader:
+                normalized = {}
+                for target, aliases in field_aliases.items():
+                    value = ""
+                    for alias in aliases:
+                        if alias in row and row[alias]:
+                            value = row[alias]
+                            break
+                    normalized[target] = value
+                raw_leads.append(normalized)
+
+        max_total = request.max_results if request.max_results else 20
+        
+        # Rodar pipelines em memória
+        enriched, top_leads = qualify_leads(raw_leads, max_total)
+        diagnosed = diagnose_top_leads(top_leads)
+
+        # Montar os payloads WebhookPayload estruturados
+        final_report = []
+        for lead in diagnosed:
+            payload = build_gmaps_webhook_payload(lead)
+            payload["origem"] = "google_maps"
+            payload["status"] = "Prospectado"
+            final_report.append(payload)
+
+        # Enviar para o webhook
+        webhook_scrapper = "https://myn8n.seommerce.shop/webhook/scrapper"
+        url = request.webhook_url or webhook_scrapper
+        print(f"Enviando {len(final_report)} leads para o webhook {url}...")
+        requests.post(url, json={"leads": final_report}, timeout=30)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape Google Maps finalizado! Duração: {duration:.1f}s")
+        
+    except Exception as e:
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao processar Google Maps: {e}")
+
 @app.post("/scrape/google_maps")
-async def scrape_google_maps(request: ScrapeRequest):
-    # Placeholder as collectors/google_maps.py is empty
-    return {"status": "not_implemented", "message": "Google Maps collector is not yet implemented"}
+async def scrape_google_maps(request: ScrapeRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(process_google_maps, request)
+    return {"status": "accepted", "message": "Scraping google maps in background"}
+
