@@ -40,6 +40,8 @@ class ScrapeRequest(BaseModel):
     webhook_url: Optional[str] = None
     target_platform: Optional[str] = None
     min_results: Optional[int] = None
+    objective: Optional[str] = None
+    contact_channel: Optional[str] = None
 
 def process_meta_ads(request: ScrapeRequest):
     start_time = datetime.now()
@@ -49,6 +51,18 @@ def process_meta_ads(request: ScrapeRequest):
         max_total = request.max_results if request.max_results else 20
         min_total = request.min_results if request.min_results else 5
         target_platform = request.target_platform
+        objective = request.objective
+        contact_channel = request.contact_channel
+
+        # Palavras-chave que indicam intenção comercial direta
+        commercial_ctas = [
+            "orçamento", "orcamento", "cotação", "cotacao", "proposta",
+            "chamar", "fale", "falar", "conversar", "mensagem", "dúvidas", "duvidas",
+            "agendar", "marcar", "reservar", "consulta", "avaliação", "avaliacao", "visita",
+            "demonstração", "demonstracao", "análise", "analise", "diagnóstico", "diagnostico",
+            "consultoria", "simulação", "simulacao", "simular", "calcular", "condições", "condicoes",
+            "comprar", "assinar"
+        ]
         
         unique_leads = {}
         final_report = []
@@ -79,16 +93,67 @@ def process_meta_ads(request: ScrapeRequest):
 
                 enriched = enrich_card(card)
                 
-                # Filtra apenas leads que tenham telefone ou email
-                has_phone = bool(enriched.get("contact_phone"))
-                has_email = bool(enriched.get("contact_email"))
-                if not (has_phone or has_email):
-                    continue
-
-                # Filtra por plataforma se solicitado (ex: whatsapp)
+                # 1. Filtra por target_platform (para onde o anúncio redireciona)
                 if target_platform == "whatsapp":
-                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
+                    dest_wa = (enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower() or "api.whatsapp.com" in str(enriched.get("destination_url", "")).lower())
+                    if not dest_wa:
+                        continue
+                elif target_platform == "instagram":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "instagram_profile" and "instagram.com" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif target_platform == "facebook":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "facebook_page" and "facebook.com" not in str(enriched.get("destination_url", "")).lower() and "m.me" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif target_platform == "site_externo":
+                    dest_type = enriched.get("destination_type", "")
+                    has_url = bool(enriched.get("destination_url"))
+                    if not (dest_type == "website" and has_url):
+                        continue
+
+                # 2. Filtra por contact_channel (qual o meio de contato exigido para o lead)
+                if contact_channel == "whatsapp":
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower() or "api.whatsapp.com" in str(enriched.get("destination_url", "")).lower())
                     if not has_wa:
+                        continue
+                elif contact_channel == "phone":
+                    if not enriched.get("contact_phone"):
+                        continue
+                elif contact_channel == "email":
+                    if not enriched.get("contact_email"):
+                        continue
+                elif contact_channel == "instagram":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "instagram_profile" and "instagram.com" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif contact_channel == "facebook":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "facebook_page" and "facebook.com" not in str(enriched.get("destination_url", "")).lower() and "m.me" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif contact_channel == "any":
+                    has_phone = bool(enriched.get("contact_phone"))
+                    has_email = bool(enriched.get("contact_email"))
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower())
+                    dest_type = enriched.get("destination_type", "")
+                    has_social = dest_type in ["instagram_profile", "facebook_page"] or "instagram.com" in str(enriched.get("destination_url", "")).lower() or "facebook.com" in str(enriched.get("destination_url", "")).lower()
+                    if not (has_phone or has_email or has_wa or has_social):
+                        continue
+                else:
+                    # Default: se não especificar o contact_channel, exige ao menos telefone, email ou um canal direto social/zap
+                    has_phone = bool(enriched.get("contact_phone"))
+                    has_email = bool(enriched.get("contact_email"))
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower())
+                    dest_type = enriched.get("destination_type", "")
+                    has_social = dest_type in ["instagram_profile", "facebook_page"] or "instagram.com" in str(enriched.get("destination_url", "")).lower() or "facebook.com" in str(enriched.get("destination_url", "")).lower()
+                    if not (has_phone or has_email or has_wa or has_social):
+                        continue
+
+                # Filtra por objetivo se solicitado (ex: comercial)
+                if objective == "commercial":
+                    cta_text = str(enriched.get("cta_text", "")).lower()
+                    has_commercial_intent = any(word in cta_text for word in commercial_ctas)
+                    if not has_commercial_intent:
                         continue
 
                 unique_leads[key] = card
