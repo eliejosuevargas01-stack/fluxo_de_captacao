@@ -91,28 +91,42 @@ def process_meta_ads(request: ScrapeRequest):
 
                 enriched = enrich_card(card)
                 
-                # Filtra apenas leads que tenham telefone ou email
-                has_phone = bool(enriched.get("contact_phone"))
-                has_email = bool(enriched.get("contact_email"))
-                if not (has_phone or has_email):
-                    continue
+                # Filtra por plataforma se solicitado (ex: whatsapp, site_externo, instagram, facebook)
+                # Só descarta os leads sem telefone/e-mail (fallback natural) se NÃO for focado numa rede social de direct message
+                if target_platform == "whatsapp":
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower() or "api.whatsapp.com" in str(enriched.get("destination_url", "")).lower())
+                    if not has_wa:
+                        continue
+                elif target_platform == "instagram":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "instagram_profile" and "instagram.com" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif target_platform == "facebook":
+                    dest_type = enriched.get("destination_type", "")
+                    if dest_type != "facebook_page" and "facebook.com" not in str(enriched.get("destination_url", "")).lower() and "m.me" not in str(enriched.get("destination_url", "")).lower():
+                        continue
+                elif target_platform == "site_externo":
+                    dest_type = enriched.get("destination_type", "")
+                    has_url = bool(enriched.get("destination_url"))
+                    if not (dest_type == "website" and has_url):
+                        continue
+                    # Em sites externos, o mínimo é exigir um contato ou form
+                    has_phone = bool(enriched.get("contact_phone"))
+                    has_email = bool(enriched.get("contact_email"))
+                    if not (has_phone or has_email):
+                        continue
+                else:
+                    # Se não passou uma plataforma de DM (ou nenhuma), segue o default original
+                    has_phone = bool(enriched.get("contact_phone"))
+                    has_email = bool(enriched.get("contact_email"))
+                    if not (has_phone or has_email):
+                        continue
 
                 # Filtra por objetivo se solicitado (ex: comercial)
                 if objective == "commercial":
                     cta_text = str(enriched.get("cta_text", "")).lower()
                     has_commercial_intent = any(word in cta_text for word in commercial_ctas)
                     if not has_commercial_intent:
-                        continue
-
-                # Filtra por plataforma se solicitado (ex: whatsapp ou site_externo)
-                if target_platform == "whatsapp":
-                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower() or "api.whatsapp.com" in str(enriched.get("destination_url", "")).lower())
-                    if not has_wa:
-                        continue
-                elif target_platform == "site_externo":
-                    dest_type = enriched.get("destination_type", "")
-                    has_url = bool(enriched.get("destination_url"))
-                    if not (dest_type == "website" and has_url):
                         continue
 
                 unique_leads[key] = card
