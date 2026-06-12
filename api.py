@@ -4,16 +4,19 @@ from typing import List, Optional
 import requests
 import time
 from datetime import datetime
+import os
+import subprocess
+import csv
 
 from meta_ads_pipeline import load_cards, enrich_card
 from collectors.facebook_ads_library import scrape_query
+from collectors.gmaps_scraper import scrape_maps
 from models import build_webhook_payload, build_gmaps_webhook_payload
 from lead_pipeline import qualify_leads, diagnose_top_leads
 
 app = FastAPI(title="Lead Extraction API")
 
 from fastapi.responses import FileResponse
-import os
 
 @app.get("/")
 async def root():
@@ -118,76 +121,23 @@ async def scrape_meta_ads(request: ScrapeRequest, background_tasks: BackgroundTa
     background_tasks.add_task(process_meta_ads, request)
     return {"status": "accepted", "message": "Scraping meta ads in background"}
 
-import subprocess
-import csv
-
 def process_google_maps(request: ScrapeRequest):
     start_time = datetime.now()
     print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Google Maps...")
     try:
-        # 1. Escrever queries no arquivo de entrada
         input_file = os.path.join("inputs", "buscas_google_maps_api.txt")
         os.makedirs(os.path.dirname(input_file), exist_ok=True)
         with open(input_file, "w", encoding="utf-8") as f:
             for q in request.queries:
                 f.write(q + "\n")
         
-        # 2. Definir caminhos de saída
-        output_dir = os.path.abspath("outputs")
-        os.makedirs(output_dir, exist_ok=True)
-        raw_output = os.path.join(output_dir, "leads_raw.csv")
-        
-        # Remover arquivo antigo se existir para evitar falsos positivos
-        if os.path.exists(raw_output):
-            try:
-                os.remove(raw_output)
-            except Exception:
-                pass
-
-        # 3. Rodar Docker do scraper
-        print(f"Rodando docker gosom/google-maps-scraper para as queries...")
-        cmd = [
-            "docker", "--context", "default", "run", "--rm",
-            "-v", "gmaps-playwright-cache:/opt",
-            "-v", f"{os.path.abspath(input_file)}:/queries.txt:ro",
-            "-v", f"{output_dir}:/out",
-            "gosom/google-maps-scraper",
-            "-input", "/queries.txt",
-            "-results", "/out/leads_raw.csv",
-            "-depth", "1",
-            "-exit-on-inactivity", "3m"
-        ]
-        subprocess.run(cmd, check=True)
-        
-        # 4. Normalizar, qualificar e gerar payloads em memória
-        if not os.path.exists(raw_output):
-            raise FileNotFoundError("Scraper executado mas leads_raw.csv nao foi gerado.")
-
-        print("Processando leads em memória (sem gravar CSV)...")
-        field_aliases = {
-            "nome": ["title", "name"],
-            "telefone": ["phone"],
-            "site": ["website", "site"],
-            "endereco": ["address", "complete_address"],
-            "avaliacoes": ["review_count", "reviews", "reviewcount"],
-            "nota": ["review_rating", "rating"],
-            "categoria": ["category"],
-        }
+        print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape Google Maps nativo...")
         
         raw_leads = []
-        with open(raw_output, "r", encoding="utf-8", newline="") as fh:
-            reader = csv.DictReader(fh)
-            for row in reader:
-                normalized = {}
-                for target, aliases in field_aliases.items():
-                    value = ""
-                    for alias in aliases:
-                        if alias in row and row[alias]:
-                            value = row[alias]
-                            break
-                    normalized[target] = value
-                raw_leads.append(normalized)
-
+        for query in request.queries:
+            results = scrape_maps(query, request.max_results)
+            raw_leads.extend(results)
+            
         max_total = request.max_results if request.max_results else 20
         
         # Rodar pipelines em memória
