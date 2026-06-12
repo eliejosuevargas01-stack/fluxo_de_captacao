@@ -40,6 +40,7 @@ class ScrapeRequest(BaseModel):
     webhook_url: Optional[str] = None
     target_platform: Optional[str] = None
     min_results: Optional[int] = None
+    objective: Optional[str] = None
 
 def process_meta_ads(request: ScrapeRequest):
     start_time = datetime.now()
@@ -49,6 +50,17 @@ def process_meta_ads(request: ScrapeRequest):
         max_total = request.max_results if request.max_results else 20
         min_total = request.min_results if request.min_results else 5
         target_platform = request.target_platform
+        objective = request.objective
+
+        # Palavras-chave que indicam intenção comercial direta
+        commercial_ctas = [
+            "orçamento", "orcamento", "cotação", "cotacao", "proposta",
+            "chamar", "fale", "falar", "conversar", "mensagem", "dúvidas", "duvidas",
+            "agendar", "marcar", "reservar", "consulta", "avaliação", "avaliacao", "visita",
+            "demonstração", "demonstracao", "análise", "analise", "diagnóstico", "diagnostico",
+            "consultoria", "simulação", "simulacao", "simular", "calcular", "condições", "condicoes",
+            "comprar", "assinar"
+        ]
         
         unique_leads = {}
         final_report = []
@@ -85,10 +97,22 @@ def process_meta_ads(request: ScrapeRequest):
                 if not (has_phone or has_email):
                     continue
 
-                # Filtra por plataforma se solicitado (ex: whatsapp)
+                # Filtra por objetivo se solicitado (ex: comercial)
+                if objective == "commercial":
+                    cta_text = str(enriched.get("cta_text", "")).lower()
+                    has_commercial_intent = any(word in cta_text for word in commercial_ctas)
+                    if not has_commercial_intent:
+                        continue
+
+                # Filtra por plataforma se solicitado (ex: whatsapp ou site_externo)
                 if target_platform == "whatsapp":
-                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
+                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp" or "wa.me" in str(enriched.get("destination_url", "")).lower() or "api.whatsapp.com" in str(enriched.get("destination_url", "")).lower())
                     if not has_wa:
+                        continue
+                elif target_platform == "site_externo":
+                    dest_type = enriched.get("destination_type", "")
+                    has_url = bool(enriched.get("destination_url"))
+                    if not (dest_type == "website" and has_url):
                         continue
 
                 unique_leads[key] = card
