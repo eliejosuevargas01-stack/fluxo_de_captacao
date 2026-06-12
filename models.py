@@ -38,29 +38,6 @@ class PresencaDigital(BaseModel):
     erros_identificados_site: Optional[ErrosIdentificadosSite] = None
     diagnostico_site: Optional[DiagnosticoSite] = None
 
-class FunilWhatsappDirect(BaseModel):
-    tipo_redirecionamento_anuncio: str
-    tem_link_whatsapp: bool
-    numero_whatsapp_detectado: Optional[str] = None
-    mensagem_pre_preenchida: Optional[str] = None
-
-class TempoResposta(BaseModel):
-    demorou_responder: bool = False
-    tempo_segundos_primeira_resposta: Optional[int] = None
-    classificacao_atendimento: str = "sem_resposta_24h"
-
-class QualidadeAtendimentoInicial(BaseModel):
-    foi_resposta_automatica: bool = False
-    conteudo_resposta_automatica: Optional[str] = None
-    teve_qualificacao_ou_triagem: bool = False
-    mandou_link_agendamento: bool = False
-
-class MetricasAtendimentoTeste(BaseModel):
-    teste_executado: bool = False
-    plataforma_testada: Optional[str] = None
-    horario_envio_teste: str
-    tempo_resposta: TempoResposta
-    qualidade_atendimento_inicial: QualidadeAtendimentoInicial
 class OportunidadesIdentificadas(BaseModel):
     urgencia_de_site: bool
     urgencia_de_avaliacoes: bool
@@ -91,9 +68,6 @@ class WebhookPayload(BaseModel):
     empresa: Empresa
     analise_anuncio: AnaliseAnuncio
     presenca_digital: PresencaDigital
-    funil_whatsapp_direct: FunilWhatsappDirect
-    metricas_atendimento_teste: MetricasAtendimentoTeste
-
 
 from typing import Dict, Any
 import datetime
@@ -175,31 +149,6 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     else:
         tipo_redirecionamento = dest_type
 
-    funil = FunilWhatsappDirect(
-        tipo_redirecionamento_anuncio=tipo_redirecionamento,
-        tem_link_whatsapp=(enriched_card.get("contact_has_whatsapp") == "sim"),
-        numero_whatsapp_detectado=enriched_card.get("contact_phone"),
-        mensagem_pre_preenchida=enriched_card.get("prefilled_message")
-    )
-
-    metricas = MetricasAtendimentoTeste(
-        teste_executado=teste_executado,
-        plataforma_testada=plataforma_testada,
-        horario_envio_teste=datetime.datetime.now().isoformat(),
-        tempo_resposta=TempoResposta(
-            demorou_responder=demorou,
-            tempo_segundos_primeira_resposta=tempo_segundos,
-            classificacao_atendimento=classificacao
-        ),
-        qualidade_atendimento_inicial=QualidadeAtendimentoInicial(
-            foi_resposta_automatica=foi_auto,
-            conteudo_resposta_automatica=conteudo_auto,
-            teve_qualificacao_ou_triagem=teve_triagem,
-            mandou_link_agendamento=mandou_link
-        )
-    )
-
-
     payload = WebhookPayload(
         lead_id=f"meta_{lead_id}",
         data_coleta=datetime.datetime.now().isoformat(),
@@ -212,6 +161,8 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
             telefone_contato=enriched_card.get("contact_phone"),
             email_contato=enriched_card.get("contact_email"),
             facebook_page_url=enriched_card.get("page_url"),
+            instagram_url=None,
+            localizacao=""
         ),
         analise_anuncio=AnaliseAnuncio(
             id_anuncio_meta=lead_id,
@@ -226,8 +177,9 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     )
     res = payload.model_dump()
     if plataforma_destino != "site_externo":
-        if "presenca_digital" in res and "erros_identificados_site" in res["presenca_digital"]:
-            res["presenca_digital"].pop("erros_identificados_site", None)
+        if "presenca_digital" in res and "diagnostico_site" in res["presenca_digital"]:
+            res["presenca_digital"].pop("diagnostico_site", None)
+            
     return res
 
 def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
