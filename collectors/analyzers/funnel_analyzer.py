@@ -23,16 +23,6 @@ SOCIAL_DOMAINS = {
 }
 
 
-@dataclass
-class OfferProposal:
-    gap: str
-    offer: str
-    kind: str
-    score: int
-    confidence: int
-    evidence: list[str]
-
-
 @dataclass(frozen=True)
 class FunnelSignals:
     destination_type: str
@@ -50,6 +40,8 @@ class FunnelSignals:
     prefilled_message: str = ""
     email: str | None = None
     phone: str | None = None
+    has_cta: bool = False
+    load_time: float = 0.0
 
 
 def normalize_url(url: Any) -> str:
@@ -154,6 +146,7 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
     has_whatsapp = any(token in blob for token in ("wa.me", "api.whatsapp.com", "whatsapp://", "whatsapp"))
     has_form = any(token in blob for token in ("<form", "contact-form", "formulario", "formulário", "lead-form", "fale conosco"))
     has_booking = any(token in blob for token in ("calendly", "agendamento", "agendar", "agenda online", "booking", "book now", "schedule"))
+    has_cta = any(token in blob for token in ("<button", "class=\"btn", "href=", "compre ", "saiba mais", "clique aqui", "agende ", "quero ", "comprar "))
     has_instagram = "instagram.com" in blob
     
     # Extrai o email real usando a nova função
@@ -178,6 +171,7 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
         "email": email,
         "phone": phone,
         "title": title,
+        "has_cta": has_cta,
     }
 
 
@@ -208,6 +202,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
             prefilled_message="",
             email=None,
             phone=None,
+            has_cta=False,
+            load_time=0.0,
         )
 
     domain = _domain(clean_url)
@@ -238,11 +234,16 @@ def inspect_destination(url: Any) -> FunnelSignals:
             prefilled_message=prefilled_message,
             email=None,
             phone=phone,
+            has_cta=False,
+            load_time=0.0,
         )
 
     html = ""
     error = ""
     status_code = 0
+    load_time = 0.0
+    import time
+    start_t = time.time()
     try:
         response = requests.get(
             clean_url,
@@ -257,8 +258,10 @@ def inspect_destination(url: Any) -> FunnelSignals:
         clean_url = response.url
         domain = _domain(clean_url)
         status_code = response.status_code
+        load_time = time.time() - start_t
     except Exception as exc:  # pragma: no cover - network dependent
         error = exc.__class__.__name__
+        load_time = time.time() - start_t
 
     prefilled_message = ""
     if "wa.me" in clean_url or "api.whatsapp.com" in clean_url:
@@ -295,6 +298,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
         prefilled_message=prefilled_message,
         email=signals.get("email"),
         phone=phone,
+        has_cta=bool(signals.get("has_cta")),
+        load_time=load_time,
     )
 
 
@@ -312,92 +317,3 @@ def infer_niche(*texts: Any) -> str:
         if any(key in blob for key in keys):
             return label
     return "geral"
-
-
-def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") -> OfferProposal:
-    dest = signals.destination_type
-    score = 0
-    confidence = 0
-    evidence = []
-
-    if ad_status == "active":
-        score += 50
-        evidence.append("ad_status=active")
-
-    if dest != "website":
-        score += 50
-
-    if dest == "whatsapp":
-        score += 10
-
-    if niche in ["odontologia", "veterinaria"]:
-        score += 30
-
-    if niche == "imobiliaria":
-        gap = "anuncia imoveis mas sem CRM e sem automacao"
-        offer = "Pipeline de leads"
-        kind = "pipeline"
-        confidence = 80
-        evidence.append(f"niche={niche}")
-    elif dest == "whatsapp":
-        gap = "enviando os leads direto para o WhatsApp sem um fluxo automatico de qualificacao"
-        offer = "Bot WhatsApp"
-        kind = "automacao"
-        confidence = 90
-        evidence.append("destination=whatsapp")
-    elif dest in {"instagram_profile", "facebook_page"}:
-        gap = "nao tem landing page"
-        offer = "Landing Page"
-        kind = "landing_page"
-        confidence = 90
-        evidence.append(f"destination={dest}")
-    elif dest == "website":
-        evidence.append("website_detected")
-        if not signals.has_form:
-            gap = "site recebe trafego mas nao possui uma captacao clara"
-            offer = "Captacao de leads"
-            kind = "captacao"
-            confidence = 95
-            evidence.append("has_form=false")
-        elif signals.has_form:
-            gap = "possivel falta de qualificacao dos leads"
-            offer = "Automacao de Qualificacao"
-            kind = "captacao"
-            confidence = 40
-            evidence.append("has_form=true")
-        else:
-            gap = "processo de captacao nao identificado"
-            offer = "Captacao de leads"
-            kind = "captacao"
-            confidence = 20
-            evidence.append("unknown_form_state")
-    else:
-        gap = "funil desestruturado"
-        offer = "Landing Page e Automacao"
-        kind = "landing_page"
-        confidence = 20
-        evidence.append("unknown_destination")
-
-    return OfferProposal(
-        gap=gap,
-        offer=offer,
-        kind=kind,
-        score=score,
-        confidence=confidence,
-        evidence=evidence
-    )
-
-
-def build_proposal(page_name: str, proposal: OfferProposal, price: str = "R$ 300") -> str:
-    if proposal.confidence >= 80:
-        intro = f"Notei que {proposal.gap}."
-    elif proposal.confidence >= 50:
-        intro = f"Me chamou atenção um possível gargalo: {proposal.gap}."
-    else:
-        intro = f"Posso estar vendo errado, mas fiquei com uma dúvida sobre a forma como os contatos que chegam dos anúncios são tratados hoje ({proposal.gap})."
-
-    return (
-        f"Oi, {page_name}. Analisei os seus anuncios e vi isso. {intro} "
-        f"Posso te entregar {proposal.offer} por {price}, com pagamento 100% apos a entrega e prazo de 24h. "
-        f"Se fizer sentido, eu te mostro o plano e ja começo."
-    )

@@ -8,8 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from collectors.analyzers.funnel_analyzer import (
-    build_offer,
-    build_proposal,
     infer_niche,
     inspect_destination,
     _extract_phone_from_whatsapp_url,
@@ -70,8 +68,6 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
     has_whatsapp = signals.has_whatsapp or bool(phone)
 
     niche = infer_niche(card.query, card.page_name, card.ad_text, card.destination_url, card.cta_text)
-    offer_proposal = build_offer(niche, signals, card.ad_status)
-    proposal_text = build_proposal(card.page_name or "oi", offer_proposal)
     
     contact_url = signals.clean_url if signals.clean_url else (card.destination_url or card.page_url)
     if phone and not ("wa.me" in contact_url or "whatsapp" in contact_url):
@@ -101,19 +97,14 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
         "contact_has_instagram": "sim" if signals.has_instagram else "nao",
         "contact_has_phone": "sim" if has_phone else "nao",
         "contact_has_email": "sim" if has_email else "nao",
+        "contact_has_cta": "sim" if signals.has_cta else "nao",
+        "load_time": signals.load_time,
         "contact_phone": phone,
         "contact_email": email,
         "contact_error": signals.error,
         "status_code": signals.status_code,
         "prefilled_message": signals.prefilled_message,
         "niche": niche,
-        "gap": flatten(offer_proposal.gap),
-        "offer": flatten(offer_proposal.offer),
-        "offer_type": offer_proposal.kind,
-        "proposal": flatten(proposal_text),
-        "score": offer_proposal.score,
-        "confidence": offer_proposal.confidence,
-        "evidence": ", ".join(offer_proposal.evidence),
         "raw_hash": card.raw_hash,
     }
 

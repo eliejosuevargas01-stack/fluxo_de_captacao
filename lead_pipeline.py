@@ -8,7 +8,6 @@ from typing import Any
 from collectors.analyzers.lead_score import parse_float, parse_int, score_lead
 from collectors.analyzers.pain_detector import (
     diagnose_site,
-    infer_pain_and_offer,
     normalize_brazil_whatsapp_number,
     normalize_phone_digits,
 )
@@ -65,14 +64,6 @@ def infer_phone_whatsapp_status(phone: Any, diagnosis=None) -> str:
     return "desconhecido"
 
 
-def build_message(company: str, pain: str, offer: str, price: str = "R$ 300") -> str:
-    return (
-        f"Oi, {company}, tudo certo? Analisei sua presença digital e percebi que {pain}. "
-        f"Posso te entregar {offer} por {price}, com pagamento 100% após a entrega e prazo de 24h. "
-        f"Se fizer sentido, eu te mando o resumo e já começo."
-    )
-
-
 def qualify_leads(leads: list[dict[str, Any]], top_n: int) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     enriched: list[dict[str, Any]] = []
 
@@ -108,9 +99,6 @@ def diagnose_top_leads(top_leads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     diagnosed: list[dict[str, Any]] = []
     for row in top_leads:
         diagnosis = diagnose_site(row.get("site"))
-        pain, offer, offer_type = infer_pain_and_offer(row.get("categoria"), diagnosis)
-        company = _clean(row.get("nome")) or "lead"
-        message = build_message(company=company, pain=pain, offer=offer)
 
         out = dict(row)
         out["site_valido"] = "sim" if diagnosis.site else "nao"
@@ -121,10 +109,8 @@ def diagnose_top_leads(top_leads: list[dict[str, Any]]) -> list[dict[str, Any]]:
         out["formulario"] = "sim" if diagnosis.formulario else "nao"
         out["url_final"] = diagnosis.url_final
         out["erro_diagnostico"] = diagnosis.erro
-        out["dor"] = pain
-        out["oferta"] = offer
-        out["tipo_oferta"] = offer_type
-        out["mensagem"] = message
+        out["has_cta"] = "sim" if diagnosis.has_cta else "nao"
+        out["load_time"] = diagnosis.load_time
         diagnosed.append(out)
 
     return diagnosed
@@ -179,10 +165,8 @@ def main() -> None:
         "formulario",
         "url_final",
         "erro_diagnostico",
-        "dor",
-        "oferta",
-        "tipo_oferta",
-        "mensagem",
+        "has_cta",
+        "load_time",
     ]
 
     proposal_fields = [

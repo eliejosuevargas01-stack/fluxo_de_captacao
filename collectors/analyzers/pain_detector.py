@@ -30,6 +30,8 @@ class SiteDiagnosis:
     formulario: bool
     url_final: str
     erro: str = ""
+    has_cta: bool = False
+    load_time: float = 0.0
 
 
 def normalize_url(url: Any) -> str:
@@ -124,6 +126,12 @@ def _looks_like_form(html: str) -> bool:
     return any(pattern in hay for pattern in patterns)
 
 
+def _looks_like_cta(html: str) -> bool:
+    hay = html.lower()
+    patterns = ("<button", "class=\"btn", "href=", "compre ", "saiba mais", "clique aqui", "agende ", "quero ", "comprar ")
+    return any(pattern in hay for pattern in patterns)
+
+
 @lru_cache(maxsize=256)
 def diagnose_site(url: Any) -> SiteDiagnosis:
     normalized_url = normalize_url(url)
@@ -142,6 +150,10 @@ def diagnose_site(url: Any) -> SiteDiagnosis:
     html = ""
     final_url = normalized_url
     error = ""
+    load_time = 0.0
+    
+    import time
+    start_t = time.time()
 
     try:
         request = Request(
@@ -159,8 +171,10 @@ def diagnose_site(url: Any) -> SiteDiagnosis:
             raw = response.read(MAX_HTML_BYTES)
             html = raw.decode("utf-8", errors="ignore")
             html = unescape(html)
-    except (HTTPError, URLError, TimeoutError, ValueError) as exc:
+            load_time = time.time() - start_t
+    except (URLError, HTTPError, TimeoutError, ssl.SSLError) as exc:
         error = exc.__class__.__name__
+        load_time = time.time() - start_t
     except Exception as exc:  # pragma: no cover - defensive fallback
         error = exc.__class__.__name__
 
@@ -173,6 +187,8 @@ def diagnose_site(url: Any) -> SiteDiagnosis:
         formulario=_looks_like_form(html),
         url_final=final_url,
         erro=error,
+        has_cta=_looks_like_cta(html),
+        load_time=load_time,
     )
 
 

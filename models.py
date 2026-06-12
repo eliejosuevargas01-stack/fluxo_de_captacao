@@ -25,11 +25,18 @@ class ErrosIdentificadosSite(BaseModel):
     nao_possui_botao_whatsapp: bool = False
     layout_antigo_quebrado: bool = False
 
+class DiagnosticoSite(BaseModel):
+    url_abre: str
+    demora_pra_abrir: str
+    tem_formulario_captacao: str
+    tem_cta: str
+
 class PresencaDigital(BaseModel):
     tem_site_proprio: bool
     url_site: Optional[str] = None
     status_site: Optional[int] = None
     erros_identificados_site: Optional[ErrosIdentificadosSite] = None
+    diagnostico_site: Optional[DiagnosticoSite] = None
 
 class FunilWhatsappDirect(BaseModel):
     tipo_redirecionamento_anuncio: str
@@ -54,11 +61,25 @@ class MetricasAtendimentoTeste(BaseModel):
     horario_envio_teste: str
     tempo_resposta: TempoResposta
     qualidade_atendimento_inicial: QualidadeAtendimentoInicial
+class OportunidadesIdentificadas(BaseModel):
+    urgencia_de_site: bool
+    urgencia_de_avaliacoes: bool
+    urgencia_de_gestao_reputacao: bool
+    telefone_fixo: bool
 
-class DiagnosticoPainDetector(BaseModel):
-    pontos_criticos: List[str]
-    perda_financeira_estimada: str
-    solucao_ideal_recomendada: str
+class ReputacaoGoogle(BaseModel):
+    nota_media: float
+    total_avaliacoes: int
+
+class GmapsWebhookPayload(BaseModel):
+    lead_id: str
+    data_coleta: str
+    nicho: str
+    origem: str
+    empresa: Empresa
+    reputacao_google: ReputacaoGoogle
+    presenca_digital: PresencaDigital
+    oportunidades_identificadas: OportunidadesIdentificadas
 
 class WebhookPayload(BaseModel):
     lead_id: str
@@ -72,7 +93,7 @@ class WebhookPayload(BaseModel):
     presenca_digital: PresencaDigital
     funil_whatsapp_direct: FunilWhatsappDirect
     metricas_atendimento_teste: MetricasAtendimentoTeste
-    diagnostico_do_pain_detector: DiagnosticoPainDetector
+
 
 from typing import Dict, Any
 import datetime
@@ -80,9 +101,6 @@ import datetime
 def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[Dict[str, Any]] = None) -> dict:
     lead_id = enriched_card.get("ad_library_id") or enriched_card.get("raw_hash", "unknown")
 
-    pontos_criticos = []
-    if enriched_card.get("gap"):
-        pontos_criticos.append(enriched_card["gap"])
 
     if test_results:
         demorou = test_results.get("demorou_responder", False)
@@ -127,17 +145,27 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         plataforma_destino = "outro"
 
     erros = None
+    diagnostico_site = None
     if plataforma_destino == "site_externo":
         erros = ErrosIdentificadosSite(
             nao_possui_formulario_captura=not (enriched_card.get("contact_has_form") == "sim"),
             nao_possui_botao_whatsapp=not (enriched_card.get("contact_has_whatsapp") == "sim"),
+        )
+        status_c = enriched_card.get("status_code", 0)
+        load_t = enriched_card.get("load_time", 0.0)
+        diagnostico_site = DiagnosticoSite(
+            url_abre="sim" if status_c == 200 else "não",
+            demora_pra_abrir="sim" if load_t > 3.0 else "não",
+            tem_formulario_captacao="sim" if enriched_card.get("contact_has_form") == "sim" else "não",
+            tem_cta="sim" if enriched_card.get("contact_has_cta") == "sim" else "não"
         )
 
     presenca = PresencaDigital(
         tem_site_proprio=(enriched_card.get("destination_type") == "website" and enriched_card.get("status_code", 0) == 200),
         url_site=enriched_card.get("destination_clean_url"),
         status_site=enriched_card.get("status_code"),
-        erros_identificados_site=erros
+        erros_identificados_site=erros,
+        diagnostico_site=diagnostico_site
     )
 
     if "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]:
@@ -171,11 +199,6 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         )
     )
 
-    diagnostico = DiagnosticoPainDetector(
-        pontos_criticos=pontos_criticos,
-        perda_financeira_estimada="Alta" if enriched_card.get("score", 0) > 100 else "Media",
-        solucao_ideal_recomendada=enriched_card.get("offer", "")
-    )
 
     payload = WebhookPayload(
         lead_id=f"meta_{lead_id}",
@@ -199,8 +222,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         ),
         presenca_digital=presenca,
         funil_whatsapp_direct=funil,
-        metricas_atendimento_teste=metricas,
-        diagnostico_do_pain_detector=diagnostico
+        metricas_atendimento_teste=metricas
     )
     res = payload.model_dump()
     if plataforma_destino != "site_externo":
@@ -214,70 +236,65 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     safe_id = re.sub(r'[^a-zA-Z0-9]', '_', lead_id).lower()
     
     has_site = (lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim")
-    site_url = str(lead.get("site") or "").lower()
     
-    if "wa.me" in site_url or "api.whatsapp.com" in site_url or "whatsapp.com" in site_url:
-        plataforma_destino = "whatsapp"
-    elif "instagram.com" in site_url:
-        plataforma_destino = "instagram"
-    elif "facebook.com" in site_url:
-        plataforma_destino = "facebook"
-    elif has_site and lead.get("site"):
-        plataforma_destino = "site_externo"
-    else:
-        plataforma_destino = "nenhum"
-
-    erros = None
-    if plataforma_destino == "site_externo":
-        erros = ErrosIdentificadosSite(
-            nao_possui_formulario_captura=(lead.get("formulario") == "nao"),
-            nao_possui_botao_whatsapp=(lead.get("whatsapp") == "nao"),
+    # 1. Reputacao Google
+    try:
+        nota = float(lead.get("nota") or 0)
+    except ValueError:
+        nota = 0.0
+        
+    try:
+        avaliacoes = int(float(lead.get("avaliacoes") or 0))
+    except ValueError:
+        avaliacoes = 0
+        
+    reputacao = ReputacaoGoogle(
+        nota_media=nota,
+        total_avaliacoes=avaliacoes
+    )
+    
+    # 2. Oportunidades Identificadas
+    tipo_telefone = str(lead.get("telefone_tipo") or "").lower()
+    telefone_fixo = (tipo_telefone == "fixo")
+    
+    oportunidades = OportunidadesIdentificadas(
+        urgencia_de_site=not has_site,
+        urgencia_de_avaliacoes=(avaliacoes < 50),
+        urgencia_de_gestao_reputacao=(nota < 4.0 and avaliacoes > 0),
+        telefone_fixo=telefone_fixo
+    )
+    
+    # 3. Presenca Digital e Diagnostico
+    diagnostico_site_obj = None
+    if has_site:
+        url_abre = "nao" if lead.get("erro_diagnostico") else "sim"
+        load_time_str = str(lead.get("load_time", ""))
+        try:
+            load_time_val = float(load_time_str)
+        except ValueError:
+            load_time_val = 0.0
+        demora_pra_abrir = "sim" if load_time_val > 3.0 else "nao"
+        
+        diagnostico_site_obj = DiagnosticoSite(
+            url_abre=url_abre,
+            demora_pra_abrir=demora_pra_abrir,
+            tem_formulario_captacao=lead.get("formulario") or "nao",
+            tem_cta=lead.get("has_cta") or "nao"
         )
-    
+        
     presenca = PresencaDigital(
         tem_site_proprio=has_site,
         url_site=lead.get("site"),
         status_site=None,
-        erros_identificados_site=erros
+        erros_identificados_site=None,
+        diagnostico_site=diagnostico_site_obj
     )
     
-    funil = FunilWhatsappDirect(
-        tipo_redirecionamento_anuncio="google_maps_organic",
-        tem_link_whatsapp=(lead.get("whatsapp") == "sim"),
-        numero_whatsapp_detectado=lead.get("telefone"),
-        mensagem_pre_preenchida=None
-    )
-    
-    metricas = MetricasAtendimentoTeste(
-        teste_executado=False,
-        plataforma_testada=None,
-        horario_envio_teste=datetime.datetime.now().isoformat(),
-        tempo_resposta=TempoResposta(),
-        qualidade_atendimento_inicial=QualidadeAtendimentoInicial()
-    )
-    
-    pontos_criticos = []
-    if lead.get("dor"):
-        pontos_criticos.append(lead["dor"])
-        
-    try:
-        score_val = float(lead.get("score") or 0)
-    except Exception:
-        score_val = 0.0
-
-    diagnostico = DiagnosticoPainDetector(
-        pontos_criticos=pontos_criticos,
-        perda_financeira_estimada="Alta" if score_val > 100 else "Media",
-        solucao_ideal_recomendada=lead.get("oferta", "")
-    )
-    
-    payload = WebhookPayload(
+    payload = GmapsWebhookPayload(
         lead_id=f"gmaps_{safe_id}",
         data_coleta=datetime.datetime.now().isoformat(),
         nicho=lead.get("categoria") or "geral",
         origem="google_maps",
-        status="Prospectado",
-        plataforma_destino=plataforma_destino,
         empresa=Empresa(
             nome=lead.get("nome") or "Desconhecido",
             telefone_contato=lead.get("telefone"),
@@ -285,20 +302,14 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
             facebook_page_url=None,
             localizacao=lead.get("endereco") or "",
         ),
-        analise_anuncio=AnaliseAnuncio(
-            id_anuncio_meta="",
-            link_biblioteca_anuncios="",
-            data_inicio_veiculacao="",
-            plataformas_veiculadas=[],
-            link_destino_botao=""
-        ),
+        reputacao_google=reputacao,
         presenca_digital=presenca,
-        funil_whatsapp_direct=funil,
-        metricas_atendimento_teste=metricas,
-        diagnostico_do_pain_detector=diagnostico
+        oportunidades_identificadas=oportunidades
     )
+    
     res = payload.model_dump()
-    if plataforma_destino != "site_externo":
-        if "presenca_digital" in res and "erros_identificados_site" in res["presenca_digital"]:
-            res["presenca_digital"].pop("erros_identificados_site", None)
+    if not has_site:
+        if "presenca_digital" in res and "diagnostico_site" in res["presenca_digital"]:
+            res["presenca_digital"].pop("diagnostico_site", None)
+            
     return res
