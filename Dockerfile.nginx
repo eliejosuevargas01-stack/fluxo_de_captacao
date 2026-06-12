@@ -1,0 +1,12 @@
+FROM nginx:alpine
+
+# Copy the main index.html
+COPY index.html /usr/share/nginx/html/
+
+# Copy any static assets (optional folder "static")
+COPY static/ /usr/share/nginx/html/static/
+
+# Optional custom Nginx config to redirect "/" to "/index.html"
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+EXPOSE 80
