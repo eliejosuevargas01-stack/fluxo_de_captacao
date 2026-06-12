@@ -70,8 +70,8 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
     has_whatsapp = signals.has_whatsapp or bool(phone)
 
     niche = infer_niche(card.query, card.page_name, card.ad_text, card.destination_url, card.cta_text)
-    gap, offer, offer_type, score = build_offer(niche, signals, card.ad_status)
-    proposal = build_proposal(card.page_name or "oi", gap, offer)
+    offer_proposal = build_offer(niche, signals, card.ad_status)
+    proposal_text = build_proposal(card.page_name or "oi", offer_proposal)
     
     contact_url = signals.clean_url if signals.clean_url else (card.destination_url or card.page_url)
     if phone and not ("wa.me" in contact_url or "whatsapp" in contact_url):
@@ -107,11 +107,13 @@ def enrich_card(card: MetaAdCard) -> dict[str, Any]:
         "status_code": signals.status_code,
         "prefilled_message": signals.prefilled_message,
         "niche": niche,
-        "gap": flatten(gap),
-        "offer": flatten(offer),
-        "offer_type": offer_type,
-        "proposal": flatten(proposal),
-        "score": score,
+        "gap": flatten(offer_proposal.gap),
+        "offer": flatten(offer_proposal.offer),
+        "offer_type": offer_proposal.kind,
+        "proposal": flatten(proposal_text),
+        "score": offer_proposal.score,
+        "confidence": offer_proposal.confidence,
+        "evidence": ", ".join(offer_proposal.evidence),
         "raw_hash": card.raw_hash,
     }
 
@@ -180,6 +182,8 @@ def main() -> None:
         "offer_type",
         "proposal",
         "score",
+        "confidence",
+        "evidence",
     ]
 
     raw_rows = [asdict(card) for card in cards]

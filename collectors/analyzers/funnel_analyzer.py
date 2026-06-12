@@ -23,6 +23,16 @@ SOCIAL_DOMAINS = {
 }
 
 
+@dataclass
+class OfferProposal:
+    gap: str
+    offer: str
+    kind: str
+    score: int
+    confidence: int
+    evidence: list[str]
+
+
 @dataclass(frozen=True)
 class FunnelSignals:
     destination_type: str
@@ -304,16 +314,22 @@ def infer_niche(*texts: Any) -> str:
     return "geral"
 
 
-def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") -> tuple[str, str, str, int]:
+def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") -> OfferProposal:
     dest = signals.destination_type
     score = 0
+    confidence = 0
+    evidence = []
 
     if ad_status == "active":
         score += 50
+        evidence.append("ad_status=active")
+
     if dest != "website":
         score += 50
+
     if dest == "whatsapp":
         score += 10
+
     if niche in ["odontologia", "veterinaria"]:
         score += 30
 
@@ -321,29 +337,67 @@ def build_offer(niche: str, signals: FunnelSignals, ad_status: str = "unknown") 
         gap = "anuncia imoveis mas sem CRM e sem automacao"
         offer = "Pipeline de leads"
         kind = "pipeline"
+        confidence = 80
+        evidence.append(f"niche={niche}")
     elif dest == "whatsapp":
         gap = "enviando os leads direto para o WhatsApp sem um fluxo automatico de qualificacao"
         offer = "Bot WhatsApp"
         kind = "automacao"
+        confidence = 90
+        evidence.append("destination=whatsapp")
     elif dest in {"instagram_profile", "facebook_page"}:
         gap = "nao tem landing page"
         offer = "Landing Page"
         kind = "landing_page"
+        confidence = 90
+        evidence.append(f"destination={dest}")
     elif dest == "website":
-        gap = "formulario horrivel"
-        offer = "Captacao de leads"
-        kind = "captacao"
+        evidence.append("website_detected")
+        if not signals.has_form:
+            gap = "site recebe trafego mas nao possui uma captacao clara"
+            offer = "Captacao de leads"
+            kind = "captacao"
+            confidence = 95
+            evidence.append("has_form=false")
+        elif signals.has_form:
+            gap = "possivel falta de qualificacao dos leads"
+            offer = "Automacao de Qualificacao"
+            kind = "captacao"
+            confidence = 40
+            evidence.append("has_form=true")
+        else:
+            gap = "processo de captacao nao identificado"
+            offer = "Captacao de leads"
+            kind = "captacao"
+            confidence = 20
+            evidence.append("unknown_form_state")
     else:
         gap = "funil desestruturado"
         offer = "Landing Page e Automacao"
         kind = "landing_page"
+        confidence = 20
+        evidence.append("unknown_destination")
 
-    return gap, offer, kind, score
+    return OfferProposal(
+        gap=gap,
+        offer=offer,
+        kind=kind,
+        score=score,
+        confidence=confidence,
+        evidence=evidence
+    )
 
 
-def build_proposal(page_name: str, gap: str, offer: str, price: str = "R$ 300") -> str:
+def build_proposal(page_name: str, proposal: OfferProposal, price: str = "R$ 300") -> str:
+    if proposal.confidence >= 80:
+        intro = f"Notei que {proposal.gap}."
+    elif proposal.confidence >= 50:
+        intro = f"Me chamou atenção um possível gargalo: {proposal.gap}."
+    else:
+        intro = f"Posso estar vendo errado, mas fiquei com uma dúvida sobre a forma como os contatos que chegam dos anúncios são tratados hoje ({proposal.gap})."
+
     return (
-        f"Oi, {page_name}. Analisei os seus anuncios e vi que {gap}. "
-        f"Posso te entregar {offer} por {price}, com pagamento 100% apos a entrega e prazo de 24h. "
+        f"Oi, {page_name}. Analisei os seus anuncios e vi isso. {intro} "
+        f"Posso te entregar {proposal.offer} por {price}, com pagamento 100% apos a entrega e prazo de 24h. "
         f"Se fizer sentido, eu te mostro o plano e ja começo."
     )

@@ -14,11 +14,13 @@ signals = FunnelSignals(
     error=""
 )
 
-gap, offer, kind, score = build_offer("veterinaria", signals, "active")
+proposal1 = build_offer("veterinaria", signals, "active")
 print("=== Dummy Lead 1: WhatsApp without form (Veterinaria) ===")
-print("Gap:", gap)
-print("Offer:", offer)
-print("Score:", score)
+print("Gap:", proposal1.gap)
+print("Offer:", proposal1.offer)
+print("Score:", proposal1.score)
+print("Confidence:", proposal1.confidence)
+print("Evidence:", proposal1.evidence)
 print()
 
 signals2 = FunnelSignals(
@@ -35,11 +37,13 @@ signals2 = FunnelSignals(
     error=""
 )
 
-gap2, offer2, kind2, score2 = build_offer("odontologia", signals2, "active")
+proposal2 = build_offer("odontologia", signals2, "active")
 print("=== Dummy Lead 2: Instagram profile (Odontologia) ===")
-print("Gap:", gap2)
-print("Offer:", offer2)
-print("Score:", score2)
+print("Gap:", proposal2.gap)
+print("Offer:", proposal2.offer)
+print("Score:", proposal2.score)
+print("Confidence:", proposal2.confidence)
+print("Evidence:", proposal2.evidence)
 print()
 
 signals3 = FunnelSignals(
@@ -56,8 +60,10 @@ signals3 = FunnelSignals(
     error=""
 )
 
-gap3, offer3, kind3, score3 = build_offer("imobiliaria", signals3, "active")
+proposal3 = build_offer("imobiliaria", signals3, "active")
 print("=== Dummy Lead 3: Website without form (Imobiliaria) ===")
-print("Gap:", gap3)
-print("Offer:", offer3)
-print("Score:", score3)
+print("Gap:", proposal3.gap)
+print("Offer:", proposal3.offer)
+print("Score:", proposal3.score)
+print("Confidence:", proposal3.confidence)
+print("Evidence:", proposal3.evidence)
