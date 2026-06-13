@@ -171,9 +171,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
             plataformas_veiculadas=[p.strip() for p in str(enriched_card.get("platforms", "")).split(",") if p.strip()],
             link_destino_botao=enriched_card.get("destination_url", "")
         ),
-        presenca_digital=presenca,
-        funil_whatsapp_direct=funil,
-        metricas_atendimento_teste=metricas
+        presenca_digital=presenca
     )
     res = payload.model_dump()
     if plataforma_destino != "site_externo":
