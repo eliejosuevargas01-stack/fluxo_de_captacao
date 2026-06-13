@@ -175,3 +175,11 @@ async def scrape_google_maps(request: ScrapeRequest, background_tasks: Backgroun
     background_tasks.add_task(process_google_maps, request)
     return {"status": "accepted", "message": "Scraping google maps in background"}
 
+@app.post("/test-webhook")
+async def test_webhook(payload: dict):
+    print("\n=== WEBHOOK RECEIVED ===")
+    import json
+    print(json.dumps(payload, indent=2, ensure_ascii=False))
+    print("========================\n")
+    return {"status": "ok"}
+

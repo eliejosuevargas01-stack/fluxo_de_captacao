@@ -42,6 +42,9 @@ class FunnelSignals:
     phone: str | None = None
     has_cta: bool = False
     load_time: float = 0.0
+    instagram_url: str | None = None
+    facebook_url: str | None = None
+    whatsapp_hints: tuple[str, ...] = ()
 
 
 def normalize_url(url: Any) -> str:
@@ -159,6 +162,17 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
     phone = phones[0] if phones else None
     has_phone = bool(phone)
     
+    # Extrai as URLs do Instagram e Facebook
+    instagram_url = None
+    insta_match = re.search(r'https?://(?:www\.)?instagram\.com/[a-zA-Z0-9_\.-]+/?', html, re.IGNORECASE)
+    if insta_match:
+        instagram_url = insta_match.group(0).rstrip('/')
+        
+    facebook_url = None
+    fb_match = re.search(r'https?://(?:www\.)?facebook\.com/[a-zA-Z0-9_\.-]+/?', html, re.IGNORECASE)
+    if fb_match:
+        facebook_url = fb_match.group(0).rstrip('/')
+        
     title_match = re.search(r"<title[^>]*>(.*?)</title>", html, flags=re.IGNORECASE | re.DOTALL)
     title = unescape(title_match.group(1)).strip() if title_match else ""
     return {
@@ -172,6 +186,8 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
         "phone": phone,
         "title": title,
         "has_cta": has_cta,
+        "instagram_url": instagram_url,
+        "facebook_url": facebook_url,
     }
 
 
@@ -233,6 +249,9 @@ def inspect_destination(url: Any) -> FunnelSignals:
             phone=phone,
             has_cta=False,
             load_time=0.0,
+            instagram_url=clean_url if "instagram.com" in domain else None,
+            facebook_url=clean_url if "facebook.com" in domain else None,
+            whatsapp_hints=(phone,) if phone else (),
         )
 
     html = ""
@@ -242,6 +261,8 @@ def inspect_destination(url: Any) -> FunnelSignals:
     import time
     start_t = time.time()
     try:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         response = requests.get(
             clean_url,
             timeout=15,
@@ -250,6 +271,7 @@ def inspect_destination(url: Any) -> FunnelSignals:
                 "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8",
             },
             allow_redirects=True,
+            verify=False,
         )
         html = response.text
         clean_url = response.url
@@ -279,6 +301,11 @@ def inspect_destination(url: Any) -> FunnelSignals:
             if extra_phones:
                 phone = extra_phones[0]
 
+    extra_phones_all = extract_phones_from_text(html)
+    if phone and phone not in extra_phones_all:
+        extra_phones_all.insert(0, phone)
+    whatsapp_hints = tuple(extra_phones_all)
+
     return FunnelSignals(
         destination_type=destination_type,
         clean_url=_pick_contact_url(clean_url, signals, html) if destination_type == "website" else clean_url,
@@ -297,6 +324,9 @@ def inspect_destination(url: Any) -> FunnelSignals:
         phone=phone,
         has_cta=bool(signals.get("has_cta")),
         load_time=load_time,
+        instagram_url=signals.get("instagram_url"),
+        facebook_url=signals.get("facebook_url"),
+        whatsapp_hints=whatsapp_hints,
     )
 
 

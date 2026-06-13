@@ -7,10 +7,10 @@ from typing import Any
 
 from collectors.analyzers.lead_score import parse_float, parse_int, score_lead
 from collectors.analyzers.pain_detector import (
-    diagnose_site,
     normalize_brazil_whatsapp_number,
     normalize_phone_digits,
 )
+from collectors.analyzers.funnel_analyzer import inspect_destination
 
 
 ROOT = Path(__file__).resolve().parent
@@ -98,19 +98,25 @@ def qualify_leads(leads: list[dict[str, Any]], top_n: int) -> tuple[list[dict[st
 def diagnose_top_leads(top_leads: list[dict[str, Any]]) -> list[dict[str, Any]]:
     diagnosed: list[dict[str, Any]] = []
     for row in top_leads:
-        diagnosis = diagnose_site(row.get("site"))
+        diagnosis = inspect_destination(row.get("site"))
 
         out = dict(row)
-        out["site_valido"] = "sim" if diagnosis.site else "nao"
-        out["whatsapp"] = "sim" if diagnosis.whatsapp else "nao"
+        out["site_valido"] = "sim" if (diagnosis.clean_url and diagnosis.destination_type == "website") else "nao"
+        out["whatsapp"] = "sim" if diagnosis.has_whatsapp else "nao"
         out["whatsapp_telefone"] = infer_phone_whatsapp_status(row.get("telefone"), diagnosis)
-        out["agendamento"] = "sim" if diagnosis.agendamento else "nao"
-        out["instagram"] = "sim" if diagnosis.instagram else "nao"
-        out["formulario"] = "sim" if diagnosis.formulario else "nao"
-        out["url_final"] = diagnosis.url_final
-        out["erro_diagnostico"] = diagnosis.erro
+        out["agendamento"] = "sim" if diagnosis.has_booking else "nao"
+        out["instagram"] = "sim" if diagnosis.has_instagram else "nao"
+        out["formulario"] = "sim" if diagnosis.has_form else "nao"
+        out["url_final"] = diagnosis.clean_url
+        out["erro_diagnostico"] = diagnosis.error
         out["has_cta"] = "sim" if diagnosis.has_cta else "nao"
         out["load_time"] = diagnosis.load_time
+        
+        # Canais de contato extraídos do site
+        out["email"] = diagnosis.email
+        out["instagram_url"] = diagnosis.instagram_url
+        out["facebook_url"] = diagnosis.facebook_url
+        out["telefone_extra"] = diagnosis.phone
         diagnosed.append(out)
 
     return diagnosed
@@ -167,6 +173,10 @@ def main() -> None:
         "erro_diagnostico",
         "has_cta",
         "load_time",
+        "email",
+        "instagram_url",
+        "facebook_url",
+        "telefone_extra",
     ]
 
     proposal_fields = [

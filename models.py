@@ -290,10 +290,10 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     nicho = lead.get("categoria") or "geral"
     segmento = nicho
     nome_empresa = lead.get("nome") or "Desconhecido"
-    telefone = lead.get("telefone")
-    email = None
-    instagram = None
-    facebook_page_url = None
+    telefone = lead.get("telefone") or lead.get("telefone_extra")
+    email = lead.get("email")
+    instagram = lead.get("instagram_url")
+    facebook_page_url = lead.get("facebook_url")
     
     url_site = None if is_wa_site else lead.get("site")
     link_destibo_botao = lead.get("site")
