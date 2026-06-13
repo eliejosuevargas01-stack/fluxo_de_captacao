@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from typing import List, Optional
 from datetime import datetime
 
@@ -59,125 +59,174 @@ class GmapsWebhookPayload(BaseModel):
     oportunidades_identificadas: OportunidadesIdentificadas
 
 class WebhookPayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     lead_id: str
-    data_coleta: str
-    nicho: str
-    origem: Optional[str] = None
-    status: Optional[str] = None
-    plataforma_destino: str
-    empresa: Empresa
-    analise_anuncio: AnaliseAnuncio
-    presenca_digital: PresencaDigital
+    nome_empresa: str
+    instagram: Optional[str] = None
+    telefone: Optional[str] = None
+    segmento: str = "geral"
+    origem: str = "meta_ads_library"
+    status: str = "Prospectado"
+    falha_identificada: Optional[str] = None
+    solucao_recomendada: Optional[str] = None
+    link_whatsapp: Optional[str] = None
+    facebook_page_url: Optional[str] = None
+    link_destibo_botao: Optional[str] = None
+    url_site: Optional[str] = None
+    tem_site_proprio: bool = False
+    erros_identificados_site: Optional[str] = None
+    dor_identificada: Optional[str] = None
+    credibilidade_da_dor_identificada: Optional[str] = None
+    servico_ofertado: Optional[str] = None
+    id_anuncio_meta: str
+    email: Optional[str] = None
+    tem_formulario: Optional[str] = Field(None, alias="tem formulario?")
+    tem_cta: Optional[str] = Field(None, alias="tem cta?")
+    url_abre: Optional[str] = Field(None, alias="url abre?")
+    demora_pra_abrir: Optional[str] = Field(None, alias="demora pra abrir?")
+    tem_formulario_de_captacao: Optional[str] = Field(None, alias="tem formulario de captação?")
 
 from typing import Dict, Any
 import datetime
 
-def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[Dict[str, Any]] = None) -> dict:
+def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[Dict[str, Any]] = None, target_platform: Optional[str] = None) -> dict:
+    from collectors.analyzers.pain_detector import SiteDiagnosis, infer_pain_and_offer
+    import json
+
     lead_id = enriched_card.get("ad_library_id") or enriched_card.get("raw_hash", "unknown")
+    nome_empresa = enriched_card.get("page_name") or "Desconhecido"
+    
+    # Try to extract Instagram URL
+    instagram = None
+    dest_url = enriched_card.get("destination_url") or ""
+    dest_url_lower = dest_url.lower()
+    if "instagram.com" in dest_url_lower:
+        instagram = dest_url
+    
+    telefone = enriched_card.get("contact_phone")
+    segmento = enriched_card.get("niche", "geral")
+    origem = "meta_ads_library"
+    status = "Prospectado"
 
+    # Analyze pain if it's website
+    tem_site_proprio = (enriched_card.get("destination_type") == "website")
+    
+    falha_identificada = None
+    dor_identificada = None
+    solucao_recomendada = None
+    servico_ofertado = None
+    credibilidade_da_dor_identificada = None
+    erros_identificados_site = None
 
-    if test_results:
-        demorou = test_results.get("demorou_responder", False)
-        tempo_segundos = test_results.get("tempo_segundos_primeira_resposta")
-        classificacao = test_results.get("classificacao_atendimento", "sem_resposta_24h")
+    status_c = enriched_card.get("status_code", 0)
+    load_t = enriched_card.get("load_time", 0.0)
 
-        foi_auto = test_results.get("foi_resposta_automatica", False)
-        conteudo_auto = test_results.get("conteudo_resposta_automatica")
-        teve_triagem = test_results.get("teve_qualificacao_ou_triagem", False)
-        mandou_link = test_results.get("mandou_link_agendamento", False)
+    # Diagnostico keys
+    url_abre = "não"
+    demora_pra_abrir = "não"
+    tem_formulario_captacao = "não"
+    tem_formulario = "não"
+    tem_cta = "não"
 
-        teste_executado = True
-        plataforma_testada = test_results.get("plataforma_testada", enriched_card.get("destination_type"))
+    if tem_site_proprio:
+        url_abre = "sim" if status_c == 200 else "não"
+        demora_pra_abrir = "sim" if load_t > 3.0 else "não"
+        tem_formulario_captacao = "sim" if enriched_card.get("contact_has_form") == "sim" else "não"
+        tem_formulario = "sim" if enriched_card.get("contact_has_form") == "sim" else "não"
+        tem_cta = "sim" if enriched_card.get("contact_has_cta") == "sim" else "não"
 
-        if demorou:
-            pontos_criticos.append(f"Atendimento demorou ({classificacao})")
-
-    else:
-        demorou = False
-        tempo_segundos = None
-        classificacao = "sem_resposta_24h"
-        foi_auto = False
-        conteudo_auto = None
-        teve_triagem = False
-        mandou_link = False
-        teste_executado = False
-        plataforma_testada = None
-
-    cta_text = str(enriched_card.get("cta_text", "")).lower()
-    dest_type = enriched_card.get("destination_type", "")
-    dest_url = str(enriched_card.get("destination_url", "")).lower()
-
-    if "whatsapp" in cta_text or dest_type == "whatsapp" or "wa.me" in dest_url or "api.whatsapp.com" in dest_url:
-        plataforma_destino = "whatsapp"
-    elif dest_type == "instagram_profile" or "instagram.com" in dest_url:
-        plataforma_destino = "instagram"
-    elif dest_type == "facebook_page" or "facebook.com" in dest_url:
-        plataforma_destino = "facebook"
-    elif dest_type == "website" or enriched_card.get("destination_url"):
-        plataforma_destino = "site_externo"
-    else:
-        plataforma_destino = "outro"
-
-    erros = None
-    diagnostico_site = None
-    if plataforma_destino == "site_externo":
-        erros = ErrosIdentificadosSite(
-            nao_possui_formulario_captura=not (enriched_card.get("contact_has_form") == "sim"),
-            nao_possui_botao_whatsapp=not (enriched_card.get("contact_has_whatsapp") == "sim"),
+        # Diagnose site using the SiteDiagnosis structure
+        diag = SiteDiagnosis(
+            site=True,
+            whatsapp=(enriched_card.get("contact_has_whatsapp") == "sim"),
+            whatsapp_hints=(),
+            agendamento=(enriched_card.get("contact_has_booking") == "sim"),
+            instagram=(enriched_card.get("contact_has_instagram") == "sim"),
+            formulario=(enriched_card.get("contact_has_form") == "sim"),
+            url_final=enriched_card.get("destination_clean_url") or "",
+            erro=enriched_card.get("contact_error") or "",
+            has_cta=(enriched_card.get("contact_has_cta") == "sim"),
+            load_time=load_t
         )
-        status_c = enriched_card.get("status_code", 0)
-        load_t = enriched_card.get("load_time", 0.0)
-        diagnostico_site = DiagnosticoSite(
-            url_abre="sim" if status_c == 200 else "não",
-            demora_pra_abrir="sim" if load_t > 3.0 else "não",
-            tem_formulario_captacao="sim" if enriched_card.get("contact_has_form") == "sim" else "não",
-            tem_cta="sim" if enriched_card.get("contact_has_cta") == "sim" else "não"
-        )
+        
+        pain, solution, service = infer_pain_and_offer(segmento, diag)
+        falha_identificada = json.dumps([pain])
+        dor_identificada = json.dumps([pain])
+        solucao_recomendada = solution
+        servico_ofertado = service
+        
+        # Credibility score calculation
+        if status_c == 200:
+            credibilidade_da_dor_identificada = "100%"
+        elif enriched_card.get("contact_error"):
+            credibilidade_da_dor_identificada = "0%"
+        else:
+            credibilidade_da_dor_identificada = "50%"
 
-    presenca = PresencaDigital(
-        tem_site_proprio=(enriched_card.get("destination_type") == "website" and enriched_card.get("status_code", 0) == 200),
-        url_site=enriched_card.get("destination_clean_url"),
-        status_site=enriched_card.get("status_code"),
-        erros_identificados_site=erros,
-        diagnostico_site=diagnostico_site
-    )
-
-    if "mensagem" in cta_text or "whatsapp" in cta_text or dest_type in ["whatsapp", "instagram_profile", "facebook_page"]:
-        tipo_redirecionamento = "chat_direto"
-    elif dest_type == "website":
-        tipo_redirecionamento = "site_externo"
+        # Erros identificados list
+        errors = []
+        if status_c != 200:
+            errors.append("fora_do_ar")
+        if enriched_card.get("contact_has_form") != "sim":
+            errors.append("nao_possui_formulario_captura")
+        if enriched_card.get("contact_has_whatsapp") != "sim":
+            errors.append("nao_possui_botao_whatsapp")
+        
+        erros_identificados_site = json.dumps(errors) if errors else None
     else:
-        tipo_redirecionamento = dest_type
+        # If it's a direct WhatsApp ad
+        if "whatsapp" in dest_url_lower or "wa.me" in dest_url_lower or "api.whatsapp.com" in dest_url_lower:
+            tem_cta = "sim"
+            tem_formulario = "não"
+
+    # link_whatsapp: if the button link is a whatsapp link, use that. Otherwise if we found a phone, use wa.me/phone
+    link_whatsapp = None
+    if "wa.me" in dest_url_lower or "api.whatsapp.com" in dest_url_lower or "whatsapp.com" in dest_url_lower or "whatsapp://" in dest_url_lower:
+        link_whatsapp = dest_url
+    elif telefone:
+        link_whatsapp = f"https://wa.me/{telefone}"
+
+    facebook_page_url = enriched_card.get("page_url")
+    link_destibo_botao = dest_url
+    url_site = enriched_card.get("destination_clean_url") or dest_url if tem_site_proprio else None
+    id_anuncio_meta = lead_id
+    email = enriched_card.get("contact_email")
 
     payload = WebhookPayload(
         lead_id=f"meta_{lead_id}",
-        data_coleta=datetime.datetime.now().isoformat(),
-        nicho=enriched_card.get("niche", "geral"),
-        origem="meta_ads_library",
-        status="Prospectado",
-        plataforma_destino=plataforma_destino,
-        empresa=Empresa(
-            nome=enriched_card.get("page_name") or "Desconhecido",
-            telefone_contato=enriched_card.get("contact_phone"),
-            email_contato=enriched_card.get("contact_email"),
-            facebook_page_url=enriched_card.get("page_url"),
-            instagram_url=None,
-            localizacao=""
-        ),
-        analise_anuncio=AnaliseAnuncio(
-            id_anuncio_meta=lead_id,
-            link_biblioteca_anuncios=enriched_card.get("search_url", ""),
-            data_inicio_veiculacao=enriched_card.get("start_date", ""),
-            plataformas_veiculadas=[p.strip() for p in str(enriched_card.get("platforms", "")).split(",") if p.strip()],
-            link_destino_botao=enriched_card.get("destination_url", "")
-        ),
-        presenca_digital=presenca
+        nome_empresa=nome_empresa,
+        instagram=instagram,
+        telefone=telefone,
+        segmento=segmento,
+        origem=origem,
+        status=status,
+        falha_identificada=falha_identificada,
+        solucao_recomendada=solucao_recomendada,
+        link_whatsapp=link_whatsapp,
+        facebook_page_url=facebook_page_url,
+        link_destibo_botao=link_destibo_botao,
+        url_site=url_site,
+        tem_site_proprio=tem_site_proprio,
+        erros_identificados_site=erros_identificados_site,
+        dor_identificada=dor_identificada,
+        credibilidade_da_dor_identificada=credibilidade_da_dor_identificada,
+        servico_ofertado=servico_ofertado,
+        id_anuncio_meta=id_anuncio_meta,
+        email=email,
+        tem_formulario=tem_formulario,
+        tem_cta=tem_cta,
+        url_abre=url_abre,
+        demora_pra_abrir=demora_pra_abrir,
+        tem_formulario_de_captacao=tem_formulario_captacao
     )
-    res = payload.model_dump()
-    if plataforma_destino != "site_externo":
-        if "presenca_digital" in res and "diagnostico_site" in res["presenca_digital"]:
-            res["presenca_digital"].pop("diagnostico_site", None)
-            
+
+    res = payload.model_dump(by_alias=True)
+    if target_platform != "site_externo":
+        res.pop("url abre?", None)
+        res.pop("demora pra abrir?", None)
+        res.pop("tem formulario de captação?", None)
+
     return res
 
 def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:

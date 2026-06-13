@@ -80,6 +80,19 @@ def process_meta_ads(request: ScrapeRequest):
                 if key in unique_leads:
                     continue
 
+                dest_url = card.destination_url or ""
+                dest_url_lower = dest_url.lower()
+                is_wa = "wa.me" in dest_url_lower or "api.whatsapp.com" in dest_url_lower or "whatsapp.com" in dest_url_lower or "whatsapp://" in dest_url_lower
+                is_social = is_wa or "instagram.com" in dest_url_lower or "facebook.com" in dest_url_lower
+
+                # If target_platform is whatsapp, button must direct directly to whatsapp
+                if target_platform == "whatsapp" and not is_wa:
+                    continue
+
+                # If target_platform is site_externo, button must be an external site (non-social)
+                if target_platform == "site_externo" and (is_social or not dest_url):
+                    continue
+
                 enriched = enrich_card(card)
                 
                 # Filtra apenas leads que tenham telefone ou email
@@ -88,16 +101,10 @@ def process_meta_ads(request: ScrapeRequest):
                 if not (has_phone or has_email):
                     continue
 
-                # Filtra por plataforma se solicitado (ex: whatsapp)
-                if target_platform == "whatsapp":
-                    has_wa = (enriched.get("contact_has_whatsapp") == "sim" or enriched.get("destination_type") == "whatsapp")
-                    if not has_wa:
-                        continue
-
                 unique_leads[key] = card
                 test_results = None
 
-                payload = build_webhook_payload(enriched, test_results)
+                payload = build_webhook_payload(enriched, test_results, target_platform)
                 final_report.append(payload)
                 
                 # Se alcançou o máximo, para de processar os cards

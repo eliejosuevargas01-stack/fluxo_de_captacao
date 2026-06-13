@@ -6,9 +6,10 @@ sig = inspect_destination(url)
 
 card = {
     "destination_type": sig.destination_type,
+    "destination_url": url,
     "contact_has_whatsapp": "sim",
     "prefilled_message": sig.prefilled_message
 }
 payload = build_webhook_payload(card)
 print("Mensagem extraida do FunnelSignals:", sig.prefilled_message)
-print("Mensagem no Payload JSON:", payload["funil_whatsapp_direct"]["mensagem_pre_preenchida"])
+print("WhatsApp Link no Payload:", payload.get("link_whatsapp"))
