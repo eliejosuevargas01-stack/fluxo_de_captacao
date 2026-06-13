@@ -181,6 +181,12 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     facebook_page_url = enriched_card.get("page_url")
     link_destibo_botao = dest_url
     url_site = enriched_card.get("destination_clean_url") or dest_url if tem_site_proprio else None
+    if url_site:
+        u_lower = url_site.lower()
+        if "wa.me" in u_lower or "api.whatsapp.com" in u_lower or "whatsapp.com" in u_lower or "whatsapp://" in u_lower:
+            url_site = None
+            tem_site_proprio = False
+            
     id_anuncio_meta = lead_id
     email = enriched_card.get("contact_email")
 
