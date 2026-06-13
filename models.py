@@ -134,7 +134,11 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     status = "Prospectado"
 
     # Analyze pain if it's website
-    tem_site_proprio = (enriched_card.get("destination_type") == "website")
+    dest_url = enriched_card.get("destination_url") or ""
+    dest_url_lower = dest_url.lower()
+    is_wa_dest = "wa.me" in dest_url_lower or "api.whatsapp.com" in dest_url_lower or "whatsapp.com" in dest_url_lower or "whatsapp://" in dest_url_lower
+
+    tem_site_proprio = (enriched_card.get("destination_type") == "website" and not is_wa_dest)
     
     falha_identificada = None
     dor_identificada = None
@@ -261,7 +265,14 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     lead_id = lead.get("nome") or lead.get("telefone") or "unknown"
     safe_id = re.sub(r'[^a-zA-Z0-9]', '_', lead_id).lower()
     
-    has_site = (lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim")
+    url_site = lead.get("site")
+    is_wa_site = False
+    if url_site:
+        u_lower = url_site.lower()
+        if "wa.me" in u_lower or "api.whatsapp.com" in u_lower or "whatsapp.com" in u_lower or "whatsapp://" in u_lower:
+            is_wa_site = True
+
+    has_site = (lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim") and not is_wa_site
     
     # 1. Reputacao Google
     try:
@@ -315,8 +326,8 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     instagram = None
     facebook_page_url = None
     
-    url_site = lead.get("site")
-    link_destibo_botao = url_site
+    url_site = None if is_wa_site else lead.get("site")
+    link_destibo_botao = lead.get("site")
     
     if has_site:
         url_abre = "não" if lead.get("erro_diagnostico") else "sim"
