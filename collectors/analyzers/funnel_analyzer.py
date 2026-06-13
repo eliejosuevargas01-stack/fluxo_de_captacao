@@ -176,9 +176,6 @@ def _inspect_html(html: str, url: str = "") -> dict[str, Any]:
 
 
 def _pick_contact_url(clean_url: str, signals: dict[str, Any], html: str) -> str:
-    if _destination_type(clean_url) == "website":
-        if signals.get("phone"):
-            return f"https://wa.me/{signals['phone']}"
     return clean_url
 
 
