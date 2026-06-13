@@ -53,6 +53,7 @@ class GmapsWebhookPayload(BaseModel):
     data_coleta: str
     nicho: str
     origem: str
+    status: str = "Prospectado"
     empresa: Empresa
     reputacao_google: ReputacaoGoogle
     presenca_digital: PresencaDigital
@@ -294,6 +295,7 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
         data_coleta=datetime.datetime.now().isoformat(),
         nicho=lead.get("categoria") or "geral",
         origem="google_maps",
+        status="Prospectado",
         empresa=Empresa(
             nome=lead.get("nome") or "Desconhecido",
             telefone_contato=lead.get("telefone"),
