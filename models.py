@@ -164,44 +164,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         tem_formulario = "sim" if enriched_card.get("contact_has_form") == "sim" else "não"
         tem_cta = "sim" if enriched_card.get("contact_has_cta") == "sim" else "não"
 
-        # Diagnose site using the SiteDiagnosis structure
-        diag = SiteDiagnosis(
-            site=True,
-            whatsapp=(enriched_card.get("contact_has_whatsapp") == "sim"),
-            whatsapp_hints=(),
-            agendamento=(enriched_card.get("contact_has_booking") == "sim"),
-            instagram=(enriched_card.get("contact_has_instagram") == "sim"),
-            formulario=(enriched_card.get("contact_has_form") == "sim"),
-            url_final=enriched_card.get("destination_clean_url") or "",
-            erro=enriched_card.get("contact_error") or "",
-            has_cta=(enriched_card.get("contact_has_cta") == "sim"),
-            load_time=load_t
-        )
-        
-        pain, solution, service = infer_pain_and_offer(segmento, diag)
-        falha_identificada = json.dumps([pain])
-        dor_identificada = json.dumps([pain])
-        solucao_recomendada = solution
-        servico_ofertado = solution # Normalized: solucao_recomendada and servico_ofertado have identical values
-        
-        # Credibility score calculation
-        if status_c == 200:
-            credibilidade_da_dor_identificada = "100%"
-        elif enriched_card.get("contact_error"):
-            credibilidade_da_dor_identificada = "0%"
-        else:
-            credibilidade_da_dor_identificada = "50%"
 
-        # Erros identificados list
-        errors = []
-        if status_c != 200:
-            errors.append("fora_do_ar")
-        if enriched_card.get("contact_has_form") != "sim":
-            errors.append("nao_possui_formulario_captura")
-        if enriched_card.get("contact_has_whatsapp") != "sim":
-            errors.append("nao_possui_botao_whatsapp")
-        
-        erros_identificados_site = json.dumps(errors) if errors else None
     else:
         # If it's a direct WhatsApp ad
         if "whatsapp" in dest_url_lower or "wa.me" in dest_url_lower or "api.whatsapp.com" in dest_url_lower:
@@ -348,39 +311,7 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
             tem_cta=tem_cta
         )
         
-        diag = SiteDiagnosis(
-            site=True,
-            whatsapp=(lead.get("whatsapp") == "sim"),
-            whatsapp_hints=(),
-            agendamento=(lead.get("agendamento") == "sim"),
-            instagram=(lead.get("instagram") == "sim"),
-            formulario=(lead.get("formulario") == "sim"),
-            url_final=url_site or "",
-            erro=lead.get("erro_diagnostico") or "",
-            has_cta=(lead.get("has_cta") == "sim"),
-            load_time=load_time_val
-        )
-        
-        pain, solution, service = infer_pain_and_offer(nicho, diag)
-        falha_identificada = json.dumps([pain])
-        dor_identificada = json.dumps([pain])
-        solucao_recomendada = solution
-        servico_ofertado = solution # Normalized: both solucao_recomendada and servico_ofertado have the same value/objective
-        
-        if not lead.get("erro_diagnostico"):
-            credibilidade_da_dor_identificada = "100%"
-        else:
-            credibilidade_da_dor_identificada = "0%"
-            
-        errors = []
-        if lead.get("erro_diagnostico"):
-            errors.append("fora_do_ar")
-        if lead.get("formulario") != "sim":
-            errors.append("nao_possui_formulario_captura")
-        if lead.get("whatsapp") != "sim":
-            errors.append("nao_possui_botao_whatsapp")
-            
-        erros_identificados_site = json.dumps(errors) if errors else None
+
         
     presenca = PresencaDigital(
         tem_site_proprio=has_site,
