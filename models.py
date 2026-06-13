@@ -3,10 +3,12 @@ from typing import List, Optional
 from datetime import datetime
 
 class Empresa(BaseModel):
-    nome: str
-    telefone_contato: Optional[str] = None
-    email_contato: Optional[str] = None
-    instagram_url: Optional[str] = None
+    model_config = ConfigDict(populate_by_name=True)
+
+    nome: str = Field(..., alias="nome_empresa")
+    telefone_contato: Optional[str] = Field(None, alias="telefone")
+    email_contato: Optional[str] = Field(None, alias="email")
+    instagram_url: Optional[str] = Field(None, alias="instagram")
     facebook_page_url: Optional[str] = None
     localizacao: str = ""
 
@@ -26,10 +28,12 @@ class ErrosIdentificadosSite(BaseModel):
     layout_antigo_quebrado: bool = False
 
 class DiagnosticoSite(BaseModel):
-    url_abre: str
-    demora_pra_abrir: str
-    tem_formulario_captacao: str
-    tem_cta: str
+    model_config = ConfigDict(populate_by_name=True)
+
+    url_abre: str = Field(..., alias="url abre?")
+    demora_pra_abrir: str = Field(..., alias="demora pra abrir?")
+    tem_formulario_captacao: str = Field(..., alias="tem formulario de captação?")
+    tem_cta: str = Field(..., alias="tem cta?")
 
 class PresencaDigital(BaseModel):
     tem_site_proprio: bool
@@ -49,11 +53,29 @@ class ReputacaoGoogle(BaseModel):
     total_avaliacoes: int
 
 class GmapsWebhookPayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
     lead_id: str
     data_coleta: str
     nicho: str
+    segmento: str = "geral"
     origem: str
     status: str = "Prospectado"
+    nome_empresa: str
+    telefone: Optional[str] = None
+    email: Optional[str] = None
+    instagram: Optional[str] = None
+    facebook_page_url: Optional[str] = None
+    link_whatsapp: Optional[str] = None
+    link_destibo_botao: Optional[str] = None
+    url_site: Optional[str] = None
+    tem_site_proprio: bool = False
+    erros_identificados_site: Optional[str] = None
+    falha_identificada: Optional[str] = None
+    dor_identificada: Optional[str] = None
+    solucao_recomendada: Optional[str] = None
+    servico_ofertado: Optional[str] = None
+    credibilidade_da_dor_identificada: Optional[str] = None
     empresa: Empresa
     reputacao_google: ReputacaoGoogle
     presenca_digital: PresencaDigital
@@ -67,6 +89,7 @@ class WebhookPayload(BaseModel):
     instagram: Optional[str] = None
     telefone: Optional[str] = None
     segmento: str = "geral"
+    nicho: str = "geral"
     origem: str = "meta_ads_library"
     status: str = "Prospectado"
     falha_identificada: Optional[str] = None
@@ -155,7 +178,7 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
         falha_identificada = json.dumps([pain])
         dor_identificada = json.dumps([pain])
         solucao_recomendada = solution
-        servico_ofertado = service
+        servico_ofertado = solution # Normalized: solucao_recomendada and servico_ofertado have identical values
         
         # Credibility score calculation
         if status_c == 200:
@@ -231,8 +254,11 @@ def build_webhook_payload(enriched_card: Dict[str, Any], test_results: Optional[
     return res
 
 def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
-    lead_id = lead.get("nome") or lead.get("telefone") or "unknown"
+    from collectors.analyzers.pain_detector import SiteDiagnosis, infer_pain_and_offer
+    import json
     import re
+
+    lead_id = lead.get("nome") or lead.get("telefone") or "unknown"
     safe_id = re.sub(r'[^a-zA-Z0-9]', '_', lead_id).lower()
     
     has_site = (lead.get("site_valido") == "sim" or lead.get("tem_site") == "sim")
@@ -266,41 +292,125 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
     
     # 3. Presenca Digital e Diagnostico
     diagnostico_site_obj = None
+    
+    # Flat field initialization
+    url_abre = "não"
+    demora_pra_abrir = "não"
+    tem_formulario_captacao = "não"
+    tem_formulario = "não"
+    tem_cta = "não"
+    
+    falha_identificada = None
+    dor_identificada = None
+    solucao_recomendada = None
+    servico_ofertado = None
+    credibilidade_da_dor_identificada = None
+    erros_identificados_site = None
+    
+    nicho = lead.get("categoria") or "geral"
+    segmento = nicho
+    nome_empresa = lead.get("nome") or "Desconhecido"
+    telefone = lead.get("telefone")
+    email = None
+    instagram = None
+    facebook_page_url = None
+    
+    url_site = lead.get("site")
+    link_destibo_botao = url_site
+    
     if has_site:
-        url_abre = "nao" if lead.get("erro_diagnostico") else "sim"
+        url_abre = "não" if lead.get("erro_diagnostico") else "sim"
         load_time_str = str(lead.get("load_time", ""))
         try:
             load_time_val = float(load_time_str)
         except ValueError:
             load_time_val = 0.0
-        demora_pra_abrir = "sim" if load_time_val > 3.0 else "nao"
+        demora_pra_abrir = "sim" if load_time_val > 3.0 else "não"
+        tem_formulario_captacao = "sim" if lead.get("formulario") == "sim" else "não"
+        tem_formulario = "sim" if lead.get("formulario") == "sim" else "não"
+        tem_cta = "sim" if lead.get("has_cta") == "sim" else "não"
         
         diagnostico_site_obj = DiagnosticoSite(
             url_abre=url_abre,
             demora_pra_abrir=demora_pra_abrir,
-            tem_formulario_captacao=lead.get("formulario") or "nao",
-            tem_cta=lead.get("has_cta") or "nao"
+            tem_formulario_captacao=tem_formulario_captacao,
+            tem_cta=tem_cta
         )
+        
+        diag = SiteDiagnosis(
+            site=True,
+            whatsapp=(lead.get("whatsapp") == "sim"),
+            whatsapp_hints=(),
+            agendamento=(lead.get("agendamento") == "sim"),
+            instagram=(lead.get("instagram") == "sim"),
+            formulario=(lead.get("formulario") == "sim"),
+            url_final=url_site or "",
+            erro=lead.get("erro_diagnostico") or "",
+            has_cta=(lead.get("has_cta") == "sim"),
+            load_time=load_time_val
+        )
+        
+        pain, solution, service = infer_pain_and_offer(nicho, diag)
+        falha_identificada = json.dumps([pain])
+        dor_identificada = json.dumps([pain])
+        solucao_recomendada = solution
+        servico_ofertado = solution # Normalized: both solucao_recomendada and servico_ofertado have the same value/objective
+        
+        if not lead.get("erro_diagnostico"):
+            credibilidade_da_dor_identificada = "100%"
+        else:
+            credibilidade_da_dor_identificada = "0%"
+            
+        errors = []
+        if lead.get("erro_diagnostico"):
+            errors.append("fora_do_ar")
+        if lead.get("formulario") != "sim":
+            errors.append("nao_possui_formulario_captura")
+        if lead.get("whatsapp") != "sim":
+            errors.append("nao_possui_botao_whatsapp")
+            
+        erros_identificados_site = json.dumps(errors) if errors else None
         
     presenca = PresencaDigital(
         tem_site_proprio=has_site,
-        url_site=lead.get("site"),
+        url_site=url_site,
         status_site=None,
         erros_identificados_site=None,
         diagnostico_site=diagnostico_site_obj
     )
     
+    link_whatsapp = None
+    if telefone:
+        link_whatsapp = f"https://wa.me/{telefone}"
+        
     payload = GmapsWebhookPayload(
         lead_id=f"gmaps_{safe_id}",
         data_coleta=datetime.datetime.now().isoformat(),
-        nicho=lead.get("categoria") or "geral",
+        nicho=nicho,
+        segmento=segmento,
         origem="google_maps",
         status="Prospectado",
+        nome_empresa=nome_empresa,
+        telefone=telefone,
+        email=email,
+        instagram=instagram,
+        facebook_page_url=facebook_page_url,
+        link_whatsapp=link_whatsapp,
+        link_destibo_botao=link_destibo_botao,
+        url_site=url_site,
+        tem_site_proprio=has_site,
+        erros_identificados_site=erros_identificados_site,
+        falha_identificada=falha_identificada,
+        dor_identificada=dor_identificada,
+        solucao_recomendada=solucao_recomendada,
+        servico_ofertado=servico_ofertado,
+        credibilidade_da_dor_identificada=credibilidade_da_dor_identificada,
         empresa=Empresa(
-            nome=lead.get("nome") or "Desconhecido",
-            telefone_contato=lead.get("telefone"),
-            email_contato=None,
-            facebook_page_url=None,
+            nome=nome_empresa,
+            telefone_contato=telefone,
+            email_contato=email,
+            instagram_url=instagram,
+            facebook_page_url=facebook_page_url,
             localizacao=lead.get("endereco") or "",
         ),
         reputacao_google=reputacao,
@@ -308,7 +418,7 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
         oportunidades_identificadas=oportunidades
     )
     
-    res = payload.model_dump()
+    res = payload.model_dump(by_alias=True)
     if not has_site:
         if "presenca_digital" in res and "diagnostico_site" in res["presenca_digital"]:
             res["presenca_digital"].pop("diagnostico_site", None)
