@@ -372,3 +372,36 @@ def build_gmaps_webhook_payload(lead: Dict[str, Any]) -> dict:
             res["presenca_digital"].pop("diagnostico_site", None)
             
     return res
+
+class LinkedinJobPayload(BaseModel):
+    lead_id: str
+    titulo_vaga: str
+    nome_empresa: str
+    link_empresa_linkedin: Optional[str] = None
+    link_vaga: str
+    localizacao: Optional[str] = None
+    data_publicacao: Optional[str] = None
+    senioridade: Optional[str] = None
+    tipo_contrato: Optional[str] = None
+    junior_friendly: bool
+    match_score: int
+    requisitos_destacados: List[str]
+    descricao_vaga: str
+
+def build_linkedin_webhook_payload(job: Dict[str, Any]) -> dict:
+    payload = LinkedinJobPayload(
+        lead_id=job.get("lead_id"),
+        titulo_vaga=job.get("titulo_vaga"),
+        nome_empresa=job.get("nome_empresa"),
+        link_empresa_linkedin=job.get("link_empresa_linkedin"),
+        link_vaga=job.get("link_vaga"),
+        localizacao=job.get("localizacao"),
+        data_publicacao=job.get("data_publicacao"),
+        senioridade=job.get("senioridade"),
+        tipo_contrato=job.get("tipo_contrato"),
+        junior_friendly=job.get("junior_friendly"),
+        match_score=job.get("match_score"),
+        requisitos_destacados=job.get("requisitos_destacados", []),
+        descricao_vaga=job.get("descricao_vaga")
+    )
+    return payload.model_dump()

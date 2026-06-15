@@ -11,7 +11,8 @@ import csv
 from meta_ads_pipeline import load_cards, enrich_card
 from collectors.facebook_ads_library import scrape_query
 from collectors.gmaps_scraper import scrape_maps
-from models import build_webhook_payload, build_gmaps_webhook_payload
+from collectors.linkedin import scrape_linkedin_jobs
+from models import build_webhook_payload, build_gmaps_webhook_payload, build_linkedin_webhook_payload
 from lead_pipeline import qualify_leads, diagnose_top_leads
 
 app = FastAPI(title="Lead Extraction API")
@@ -182,4 +183,43 @@ async def test_webhook(payload: dict):
     print(json.dumps(payload, indent=2, ensure_ascii=False))
     print("========================\n")
     return {"status": "ok"}
+
+def process_linkedin(request: ScrapeRequest):
+    start_time = datetime.now()
+    print(f"[{start_time.strftime('%Y-%m-%d %H:%M:%S')}] Iniciando scrape LinkedIn...")
+    try:
+        final_report = []
+        max_total = request.max_results if request.max_results else 10
+        
+        for query in request.queries:
+            if len(final_report) >= max_total:
+                break
+                
+            remaining_limit = max_total - len(final_report)
+            print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Buscando vagas de '{query}' (restante necessário: {remaining_limit})...")
+            
+            jobs = scrape_linkedin_jobs(query, location="Brasil", max_results=remaining_limit)
+            for job in jobs:
+                payload = build_linkedin_webhook_payload(job)
+                final_report.append(payload)
+                if len(final_report) >= max_total:
+                    break
+                    
+        # Enviar para o webhook
+        webhook_scrapper = "https://myn8n.seommerce.shop/webhook/scrapper"
+        url = request.webhook_url or webhook_scrapper
+        print(f"Enviando {len(final_report)} vagas para o webhook {url}...")
+        requests.post(url, json={"leads": final_report}, timeout=30)
+        
+        end_time = datetime.now()
+        duration = (end_time - start_time).total_seconds()
+        print(f"[{end_time.strftime('%Y-%m-%d %H:%M:%S')}] Scrape LinkedIn finalizado! Duração: {duration:.1f}s")
+        
+    except Exception as e:
+        print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Erro ao processar LinkedIn: {e}")
+
+@app.post("/scrape/linkedin")
+async def scrape_linkedin(request: ScrapeRequest, background_tasks: BackgroundTasks):
+    background_tasks.add_task(process_linkedin, request)
+    return {"status": "accepted", "message": "Scraping linkedin in background"}
 
